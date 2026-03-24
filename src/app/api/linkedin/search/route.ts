@@ -43,7 +43,8 @@ export async function POST(request: Request) {
       parsed.data;
 
     // ── Fetch account ID from user settings ──────────────────────────
-    const { data: settings } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
+    const { data: settings } = await (supabase as any)
       .from("settings")
       .select("unipile_account_id")
       .eq("user_id", user.id)

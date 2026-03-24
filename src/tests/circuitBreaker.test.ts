@@ -10,7 +10,8 @@ vi.mock("@/lib/logger", () => ({
   },
 }));
 
-import { CircuitBreaker, CircuitOpenError } from "@/lib/queue/circuitBreaker";
+import { CircuitBreaker } from "@/lib/queue/circuitBreaker";
+import { CircuitOpenError } from "@/lib/errors";
 
 // Re-export CircuitOpenError from errors so the test can reference it
 vi.mock("@/lib/errors", () => {
