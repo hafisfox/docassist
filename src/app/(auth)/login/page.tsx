@@ -49,9 +49,13 @@ function LoginForm() {
     <Card>
       <CardHeader className="text-center">
         <div className="mx-auto mb-2 flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
-            DA
-          </div>
+          <img
+            src="/logo.webp"
+            alt="DoctorAssist.AI logo"
+            width={32}
+            height={32}
+            className="size-8 shrink-0 rounded-lg object-cover"
+          />
           <span className="text-lg font-semibold tracking-tight">
             DoctorAssist.AI
           </span>

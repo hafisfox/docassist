@@ -127,6 +127,7 @@ export interface UnipileChatMessage {
   text: string;
   timestamp: string;
   is_sender: boolean;
+  is_event?: boolean;
 }
 
 export interface UnipileChatsResponse {

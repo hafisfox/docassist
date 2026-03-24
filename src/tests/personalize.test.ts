@@ -4,11 +4,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // also be hoisted via vi.hoisted() to avoid a temporal dead zone error.
 const mockCreate = vi.hoisted(() => vi.fn());
 
-vi.mock("@anthropic-ai/sdk", () => {
-  class Anthropic {
-    messages = { create: mockCreate };
+vi.mock("openai", () => {
+  class OpenAI {
+    chat = { completions: { create: mockCreate } };
   }
-  return { default: Anthropic };
+  return { default: OpenAI };
 });
 
 vi.mock("@/lib/ai/prompts", () => ({
@@ -22,7 +22,7 @@ import type { Lead } from "@/types/database";
 
 function mockTextResponse(text: string) {
   mockCreate.mockResolvedValueOnce({
-    content: [{ type: "text", text }],
+    choices: [{ message: { content: text } }],
   });
 }
 
@@ -72,7 +72,7 @@ describe("personalizeMessage", () => {
     vi.clearAllMocks();
   });
 
-  it("returns trimmed text from the Claude API (with lead)", async () => {
+  it("returns trimmed text from the OpenAI API (with lead)", async () => {
     mockTextResponse("  Hi Dr. Sharma, your work at HCG is impressive.  ");
 
     const result = await personalizeMessage({
@@ -84,7 +84,7 @@ describe("personalizeMessage", () => {
     expect(result).toBe("Hi Dr. Sharma, your work at HCG is impressive.");
   });
 
-  it("calls Claude with correct model and max_tokens", async () => {
+  it("calls OpenAI with correct model and max_tokens", async () => {
     mockTextResponse("optimized template");
 
     await personalizeMessage({
@@ -94,7 +94,7 @@ describe("personalizeMessage", () => {
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "claude-sonnet-4-20250514",
+        model: "gpt-4o-mini",
         max_tokens: 300,
       })
     );
@@ -110,14 +110,14 @@ describe("personalizeMessage", () => {
       lead,
     });
 
-    const call = mockCreate.mock.calls[0][0] as { messages: Array<{ content: string }> };
-    const userPrompt = call.messages[0].content;
+    const call = mockCreate.mock.calls[0][0] as { messages: Array<{ role: string; content: string }> };
+    const userPrompt = call.messages[1].content;
 
     expect(userPrompt).toContain("Dr. Ali Hassan");
     expect(userPrompt).toContain("Burjeel Holdings");
   });
 
-  it("instructs Claude to keep {{variable}} placeholders when no lead is provided", async () => {
+  it("instructs OpenAI to keep {{variable}} placeholders when no lead is provided", async () => {
     mockTextResponse("improved template with {{name}}");
 
     await personalizeMessage({
@@ -125,8 +125,8 @@ describe("personalizeMessage", () => {
       category: "follow_up",
     });
 
-    const call = mockCreate.mock.calls[0][0] as { messages: Array<{ content: string }> };
-    const userPrompt = call.messages[0].content;
+    const call = mockCreate.mock.calls[0][0] as { messages: Array<{ role: string; content: string }> };
+    const userPrompt = call.messages[1].content;
 
     expect(userPrompt).toContain("Preserve all {{variable}} placeholders");
     expect(userPrompt).toContain("Hi {{name}}, check out {{product}}");
@@ -136,28 +136,28 @@ describe("personalizeMessage", () => {
     mockTextResponse("short note");
 
     await personalizeMessage({ template: "test", category: "connection_request" });
-    const crPrompt = (mockCreate.mock.calls[0][0] as { messages: Array<{ content: string }> }).messages[0].content;
+    const crPrompt = (mockCreate.mock.calls[0][0] as { messages: Array<{ role: string; content: string }> }).messages[1].content;
     expect(crPrompt).toContain("300 characters");
 
     mockTextResponse("message text");
     await personalizeMessage({ template: "test", category: "message" });
-    const msgPrompt = (mockCreate.mock.calls[1][0] as { messages: Array<{ content: string }> }).messages[0].content;
+    const msgPrompt = (mockCreate.mock.calls[1][0] as { messages: Array<{ role: string; content: string }> }).messages[1].content;
     expect(msgPrompt).toContain("500 characters");
 
     mockTextResponse("follow up text");
     await personalizeMessage({ template: "test", category: "follow_up" });
-    const fuPrompt = (mockCreate.mock.calls[2][0] as { messages: Array<{ content: string }> }).messages[0].content;
+    const fuPrompt = (mockCreate.mock.calls[2][0] as { messages: Array<{ role: string; content: string }> }).messages[1].content;
     expect(fuPrompt).toContain("400 characters");
   });
 
-  it("throws when Claude returns a non-text block", async () => {
+  it("throws when OpenAI returns empty content", async () => {
     mockCreate.mockResolvedValueOnce({
-      content: [{ type: "tool_use", id: "x", name: "foo", input: {} }],
+      choices: [{ message: { content: null } }],
     });
 
     await expect(
       personalizeMessage({ template: "test", category: "message" })
-    ).rejects.toThrow("Unexpected response type from Claude API");
+    ).rejects.toThrow("Unexpected response from OpenAI API");
   });
 
   it("propagates API errors", async () => {
@@ -174,7 +174,11 @@ describe("personalizeMessage", () => {
     await personalizeMessage({ template: "test", category: "message" });
 
     expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ system: "test-system-prompt" })
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({ role: "system", content: "test-system-prompt" }),
+        ]),
+      })
     );
   });
 });

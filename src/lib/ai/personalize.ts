@@ -1,8 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk"
+import OpenAI from "openai"
 import { PERSONALIZATION_SYSTEM_PROMPT } from "./prompts"
 import type { Lead, IcpSegment } from "@/types/database"
 
-const client = new Anthropic()
+const client = new OpenAI()
 
 const CHAR_LIMITS: Record<"connection_request" | "message" | "follow_up", number> = {
   connection_request: 300,
@@ -30,7 +30,7 @@ export interface PersonalizeOptions {
 }
 
 /**
- * Calls the Claude API (claude-sonnet-4-20250514) to personalise or optimise a message.
+ * Calls the OpenAI API (gpt-4o-mini) to personalise or optimise a message.
  *
  * - With `lead`: replaces `{{variables}}` with real lead data and tailors copy to their profile.
  * - Without `lead`: rewrites the template to follow DoctorAssist style guidelines while
@@ -94,17 +94,19 @@ Rules:
 - Output the improved template text only`
   }
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
     max_tokens: 300,
-    system: PERSONALIZATION_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userPrompt }],
+    messages: [
+      { role: "system", content: PERSONALIZATION_SYSTEM_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
   })
 
-  const block = response.content[0]
-  if (block.type !== "text") {
-    throw new Error("Unexpected response type from Claude API")
+  const text = response.choices[0]?.message?.content
+  if (!text) {
+    throw new Error("Unexpected response from OpenAI API")
   }
 
-  return block.text.trim()
+  return text.trim()
 }

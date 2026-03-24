@@ -55,9 +55,13 @@ export function Sidebar({ collapsed, onToggle, inboxUnreadCount = 0 }: SidebarPr
           collapsed && "justify-center px-0"
         )}
       >
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-          DA
-        </div>
+        <img
+          src="/logo.webp"
+          alt="DoctorAssist.AI logo"
+          width={32}
+          height={32}
+          className="size-8 shrink-0 rounded-lg object-cover"
+        />
         {!collapsed && (
           <span className="font-heading text-sm font-semibold truncate">
             DoctorAssist.AI

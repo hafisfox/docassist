@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createHmac, timingSafeEqual } from "crypto";
+import { timingSafeEqual } from "crypto";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import type { Database, Lead, LeadStatus, ActivityType } from "@/types/database";
 
@@ -84,11 +84,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
   }
 
-  const signatureHeader =
-    request.headers.get("x-unipile-signature") ?? request.headers.get("x-signature");
+  const signatureHeader = request.headers.get("unipile-auth");
 
   if (!signatureHeader) {
-    log.warn({ correlationId }, "incoming webhook missing signature header");
+    log.warn({ correlationId }, "incoming webhook missing Unipile-Auth header");
     return NextResponse.json({ error: "Missing signature" }, { status: 401 });
   }
 
@@ -182,26 +181,23 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ received: true, correlationId }, { status: 200 });
 }
 
-// ── HMAC-SHA256 verification ──────────────────────────────────────────────────
+// ── Webhook auth verification ─────────────────────────────────────────────────
 
 /**
- * Constant-time HMAC-SHA256 comparison.
- * Accepts both `sha256=<hex>` (standard webhook format) and raw hex.
+ * Constant-time comparison of the Unipile-Auth header value against the
+ * configured WEBHOOK_SECRET.
+ *
+ * Unipile does not compute HMAC signatures — instead, you configure a custom
+ * header (Unipile-Auth: <secret>) when registering the webhook, and Unipile
+ * includes it verbatim in every POST. We use timingSafeEqual to prevent
+ * timing-based secret enumeration.
  */
-function verifySignature(body: string, signature: string, secret: string): boolean {
+function verifySignature(_body: string, header: string, secret: string): boolean {
   try {
-    const providedHex = signature.startsWith("sha256=")
-      ? signature.slice(7)
-      : signature;
-
-    const expectedHex = createHmac("sha256", secret).update(body, "utf8").digest("hex");
-
-    const expected = Buffer.from(expectedHex, "hex");
-    const provided = Buffer.from(providedHex, "hex");
-
-    // Length check prevents timingSafeEqual from throwing
-    if (expected.length !== provided.length) return false;
-    return timingSafeEqual(expected, provided);
+    const a = Buffer.from(header);
+    const b = Buffer.from(secret);
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
   } catch {
     return false;
   }

@@ -142,6 +142,7 @@ export async function POST(_request: NextRequest) {
 
         for (const msg of messages) {
           if (existingIds.has(msg.id)) continue;
+          if (msg.is_event) continue; // skip system events (call started, user joined, etc.)
 
           const direction = msg.is_sender ? "outbound" : "inbound";
           if (direction === "inbound") hasNewInbound = true;

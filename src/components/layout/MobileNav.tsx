@@ -26,9 +26,13 @@ export function MobileNav({ open, onOpenChange, inboxUnreadCount = 0 }: MobileNa
       <SheetContent side="left" className="w-64 p-0">
         <SheetHeader className="px-4 py-3">
           <div className="flex items-center gap-2">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-              DA
-            </div>
+            <img
+              src="/logo.webp"
+              alt="DoctorAssist.AI logo"
+              width={32}
+              height={32}
+              className="size-8 shrink-0 rounded-lg object-cover"
+            />
             <SheetTitle className="font-heading text-sm font-semibold">
               DoctorAssist.AI
             </SheetTitle>

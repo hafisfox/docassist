@@ -20,6 +20,10 @@ export const metadata: Metadata = {
   },
   description:
     "LinkedIn outreach automation dashboard for medical oncologists — DoctorAssist.AI",
+  icons: {
+    icon: "/logo.webp",
+    shortcut: "/logo.webp",
+  },
 };
 
 export default function RootLayout({

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
-import { AppError, RateLimitError } from "@/lib/errors";
+import { AppError, RateLimitError, UnipileError } from "@/lib/errors";
 import { checkAndIncrementLimit } from "@/lib/queue/rateLimiter";
 import { getUnipileClient } from "@/lib/unipile/client";
 import { sendMessageSchema } from "@/lib/validators";
@@ -234,6 +234,14 @@ export async function POST(request: NextRequest) {
           remaining_daily_messages: 0,
           correlationId: err.correlationId ?? correlationId,
         },
+        { status: 429 },
+      );
+    }
+
+    if (err instanceof UnipileError && err.statusCode === 422) {
+      log.warn({ error: err.toJSON() }, "linkedin rate limit hit (422) in send-message");
+      return NextResponse.json(
+        { error: "LinkedIn rate limit reached. Try again tomorrow.", correlationId },
         { status: 429 },
       );
     }

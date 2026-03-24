@@ -10,7 +10,7 @@ Target audience: Medical oncologists, hemato-oncologists, and cancer center deci
 - **Database**: Supabase (PostgreSQL + Auth + Realtime + RLS)
 - **LinkedIn API**: Unipile (https://developer.unipile.com/)
 - **Scraping**: Apify (LinkedIn profile scraper actors)
-- **AI Personalization**: Anthropic Claude API (for generating personalized messages)
+- **AI Personalization**: OpenAI API — gpt-4o-mini (for generating personalized messages)
 - **Job Queue**: pg_cron + Supabase Edge Functions (for scheduled outreach)
 - **Logging**: Pino (structured JSON logging)
 - **Deployment**: Vercel (frontend) + Supabase (backend)
@@ -37,7 +37,7 @@ Target audience: Medical oncologists, hemato-oncologists, and cancer center deci
 - **List chats**: `GET /chats?account_id={id}&account_type=LINKEDIN`
 - **Get messages in chat**: `GET /chats/{chat_id}/messages`
 - **Webhooks**: Register at Unipile dashboard — events: `message.received`, `relation.new` (accepted invitation)
-- **LinkedIn limits**: ~100 invitations/week, ~150 messages/day, ~80 profile views/day (varies by account age/health)
+- **LinkedIn limits**: ~80–100 invitations/day (paid accounts), ~150 messages/day, ~80 profile views/day (varies by account age/health)
 
 ### Apify (Profile Scraping)
 - Use "LinkedIn Profile Scraper" actor for enriching profiles from Sales Navigator URLs or search result URLs
@@ -113,8 +113,8 @@ UNIPILE_ACCOUNT_ID=
 # Apify
 APIFY_API_TOKEN=
 
-# Anthropic (for message personalization)
-ANTHROPIC_API_KEY=
+# OpenAI (for message personalization)
+OPENAI_API_KEY=
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000

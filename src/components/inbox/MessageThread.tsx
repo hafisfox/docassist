@@ -133,8 +133,12 @@ export function MessageThread({ chat, isInterested, onToggleInterested }: Messag
       const res = await fetch(`/api/linkedin/chats/${encodeURIComponent(chatId)}/messages`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load messages");
-      // API returns newest-first; reverse to show oldest at top
-      const sorted = [...(data.items as UnipileChatMessage[])].reverse();
+      // API returns newest-first; reverse to show oldest at top.
+      // Filter out non-text items (system events, voice messages, etc.) that
+      // don't carry is_sender and would crash MessageBubble.
+      const sorted = (data.items as UnipileChatMessage[])
+        .filter((m) => m != null && typeof m.is_sender === "boolean" && !m.is_event)
+        .reverse();
       setMessages(sorted);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load messages");
