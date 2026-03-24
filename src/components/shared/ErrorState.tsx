@@ -1,5 +1,5 @@
 import { AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface ErrorStateProps {
@@ -41,11 +41,14 @@ export function ErrorState({
             Try again
           </Button>
         )}
-        <Button variant="ghost" size="sm" asChild>
-          <a href={supportHref} target="_blank" rel="noopener noreferrer">
-            Get support
-          </a>
-        </Button>
+        <a
+          href={supportHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonVariants({ variant: "ghost", size: "sm" })}
+        >
+          Get support
+        </a>
       </div>
     </div>
   );

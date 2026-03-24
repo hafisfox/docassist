@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
@@ -54,16 +54,12 @@ function FollowUpPicker({ onSelect }: FollowUpPickerProps) {
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 gap-1.5 text-xs"
-        >
-          <LayoutTemplateIcon className="size-3.5" />
-          Send Follow-up Template
-        </Button>
+      <PopoverTrigger
+        type="button"
+        className={buttonVariants({ variant: "outline", size: "sm" }) + " h-7 gap-1.5 text-xs"}
+      >
+        <LayoutTemplateIcon className="size-3.5" />
+        Send Follow-up Template
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="w-64 p-0">
         <div className="flex items-center border-b px-3 py-2">
