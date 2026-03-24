@@ -127,6 +127,14 @@ export class UnipileClient {
     const log = withCorrelationId(cid);
     const accountId = params.account_id ?? this.accountId;
 
+    if (!accountId) {
+      throw new UnipileError("UNIPILE_ACCOUNT_ID is not configured", {
+        correlationId: cid,
+        statusCode: 500,
+        context: { hint: "Set UNIPILE_ACCOUNT_ID in your environment variables" },
+      });
+    }
+
     log.info(
       { keywords: params.keywords, location: params.location },
       "searching linkedin people",
