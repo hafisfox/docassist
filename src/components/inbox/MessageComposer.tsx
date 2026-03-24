@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
@@ -52,16 +52,12 @@ function TemplatePicker({ onSelect }: TemplatePickerProps) {
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-8 shrink-0"
-          title="Insert template"
-        >
-          <LayoutTemplateIcon className="size-4" />
-        </Button>
+      <PopoverTrigger
+        type="button"
+        className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-8 shrink-0")}
+        title="Insert template"
+      >
+        <LayoutTemplateIcon className="size-4" />
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="w-72 p-0">
         <div className="flex items-center border-b px-3 py-2">
