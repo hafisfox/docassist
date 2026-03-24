@@ -32,7 +32,7 @@ const NAV_ITEMS = [
   { label: "Inbox", href: "/inbox", icon: InboxIcon, shortcut: "G I" },
   { label: "Templates", href: "/templates", icon: FileTextIcon, shortcut: "G T" },
   { label: "Analytics", href: "/analytics", icon: BarChart2Icon, shortcut: "G A" },
-  { label: "Settings", href: "/settings", icon: SettingsIcon },
+  { label: "Settings", href: "/settings", icon: SettingsIcon, shortcut: undefined },
 ] as const;
 
 interface GlobalSearchProps {
