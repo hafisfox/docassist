@@ -43,6 +43,24 @@ export async function POST(request: NextRequest) {
     const { lead_id, message } = parsed.data;
     logCtx.info({ leadId: lead_id, hasMessage: !!message }, "send connection request");
 
+    // ── Fetch account ID from user settings ──────────────────────────────────
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("unipile_account_id")
+      .eq("user_id", user.id)
+      .single();
+
+    const accountId = settings?.unipile_account_id;
+    if (!accountId) {
+      return NextResponse.json(
+        {
+          error: "Unipile account not configured. Please add your Account ID in Settings.",
+          correlationId,
+        },
+        { status: 422 },
+      );
+    }
+
     // ── Check + increment daily rate limit ───────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const limitResult = await checkAndIncrementLimit(supabase as any, user.id, "invite", correlationId);
@@ -99,7 +117,7 @@ export async function POST(request: NextRequest) {
       const client = getUnipileClient();
       const profile = await client.getProfile(
         lead.linkedin_public_id,
-        undefined,
+        accountId,
         correlationId,
       );
       providerId = profile.provider_id;
@@ -117,7 +135,7 @@ export async function POST(request: NextRequest) {
     // ── Send invitation via Unipile ──────────────────────────────────────────
     const client = getUnipileClient();
     const inviteResult = await client.sendInvitation(
-      { provider_id: providerId, message: message ?? undefined },
+      { provider_id: providerId, account_id: accountId, message: message ?? undefined },
       correlationId,
     );
 

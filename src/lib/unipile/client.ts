@@ -23,13 +23,13 @@ import type {
 function getConfig() {
   const apiKey = process.env.UNIPILE_API_KEY;
   const dsn = process.env.UNIPILE_DSN;
-  const accountId = process.env.UNIPILE_ACCOUNT_ID;
 
   if (!apiKey) throw new Error("UNIPILE_API_KEY is not set");
   if (!dsn) throw new Error("UNIPILE_DSN is not set");
-  if (!accountId) throw new Error("UNIPILE_ACCOUNT_ID is not set");
 
-  return { apiKey, dsn, accountId };
+  // account_id is stored per-user in the DB (settings.unipile_account_id)
+  // and must be passed explicitly to each client method
+  return { apiKey, dsn, accountId: process.env.UNIPILE_ACCOUNT_ID ?? "" };
 }
 
 export class UnipileClient {
@@ -285,6 +285,20 @@ export class UnipileClient {
       },
       correlationId: cid,
     });
+  }
+
+  // ─── Test Connection ──────────────────────────────────────────────
+
+  async testConnection(
+    accountId: string,
+    correlationId?: string,
+  ): Promise<{ connected: boolean; accountId: string }> {
+    const cid = correlationId ?? createCorrelationId();
+    // Use GET /accounts/{id} — lightweight Unipile call to verify account exists and is reachable
+    await this.request<unknown>("GET", `/accounts/${encodeURIComponent(accountId)}`, {
+      correlationId: cid,
+    });
+    return { connected: true, accountId };
   }
 
   async getChatMessages(

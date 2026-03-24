@@ -61,6 +61,24 @@ export async function POST(request: NextRequest) {
 
     logCtx.debug({ remaining: limitResult.remaining }, "rate limit check passed");
 
+    // ── Fetch account ID from user settings ──────────────────────────────────
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("unipile_account_id")
+      .eq("user_id", user.id)
+      .single();
+
+    const accountId = settings?.unipile_account_id;
+    if (!accountId) {
+      return NextResponse.json(
+        {
+          error: "Unipile account not configured. Please add your Account ID in Settings.",
+          correlationId,
+        },
+        { status: 422 },
+      );
+    }
+
     const client = getUnipileClient();
     const now = new Date().toISOString();
 
@@ -128,7 +146,7 @@ export async function POST(request: NextRequest) {
         }
 
         logCtx.info({ publicId: lead.linkedin_public_id }, "resolving provider_id for new chat");
-        const profile = await client.getProfile(lead.linkedin_public_id, undefined, correlationId);
+        const profile = await client.getProfile(lead.linkedin_public_id, accountId, correlationId);
         providerId = profile.provider_id;
 
         // Persist for future calls
@@ -143,7 +161,7 @@ export async function POST(request: NextRequest) {
 
       logCtx.info({ providerId }, "opening new chat and sending message");
       const createChatResult = await client.sendMessage(
-        { attendees_ids: [providerId], text },
+        { account_id: accountId, attendees_ids: [providerId], text },
         correlationId,
       );
       chatId = createChatResult.chat_id;

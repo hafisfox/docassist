@@ -167,11 +167,29 @@ export default function SettingsPage() {
       return;
     }
     setTesting(true);
-    // Placeholder: In a real implementation, this would call the Unipile API
-    // to verify the account is connected and healthy.
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    toast.info("Connection test is not yet implemented — coming soon");
-    setTesting(false);
+    try {
+      const res = await fetch("/api/linkedin/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_id: unipileAccountId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.connected) {
+        toast.success("Connection successful! LinkedIn account is connected.");
+        setSettings((prev) =>
+          prev ? { ...prev, unipile_account_status: "connected" } : prev
+        );
+      } else {
+        toast.error(data.error ?? "Connection failed. Check your Account ID.");
+        setSettings((prev) =>
+          prev ? { ...prev, unipile_account_status: "error" } : prev
+        );
+      }
+    } catch {
+      toast.error("Connection test failed. Please try again.");
+    } finally {
+      setTesting(false);
+    }
   }
 
   function handleCopyWebhook() {

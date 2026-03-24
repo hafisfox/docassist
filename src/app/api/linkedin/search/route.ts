@@ -42,6 +42,24 @@ export async function POST(request: Request) {
     const { keywords, title, location, company, industry, api, page } =
       parsed.data;
 
+    // ── Fetch account ID from user settings ──────────────────────────
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("unipile_account_id")
+      .eq("user_id", user.id)
+      .single();
+
+    const accountId = settings?.unipile_account_id;
+    if (!accountId) {
+      return NextResponse.json(
+        {
+          error: "Unipile account not configured. Please add your Account ID in Settings.",
+          correlationId,
+        },
+        { status: 422 },
+      );
+    }
+
     log.info(
       { userId: user.id, keywords, title, location, company, page },
       "linkedin search request",
@@ -51,6 +69,7 @@ export async function POST(request: Request) {
     const client = getUnipileClient();
     const results = await client.searchPeople(
       {
+        account_id: accountId,
         keywords,
         title,
         location,
