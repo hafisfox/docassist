@@ -4,6 +4,8 @@ import {
   type Logger,
 } from "@/lib/logger";
 import { UnipileError } from "@/lib/errors";
+import { getCircuitBreaker } from "@/lib/queue/circuitBreaker";
+import { withRetry } from "@/lib/utils/retry";
 import type {
   UnipileSearchParams,
   UnipileSearchResponse,
@@ -80,37 +82,39 @@ export class UnipileClient {
       init.body = JSON.stringify(options.body);
     }
 
-    let response: Response;
-    try {
-      response = await fetch(url.toString(), init);
-    } catch (error) {
-      log.error({ error, method, path }, "unipile network error");
-      throw new UnipileError("Network error calling Unipile API", {
-        correlationId,
-        context: { method, path },
-        cause: error,
-      });
-    }
-
-    if (!response.ok) {
-      const errorBody = await response.text().catch(() => "");
-      log.error(
-        { status: response.status, errorBody, method, path },
-        "unipile api error",
-      );
-      throw new UnipileError(
-        `Unipile API error: ${response.status} ${response.statusText}`,
-        {
-          statusCode: response.status,
+    return withRetry(() => getCircuitBreaker().execute(async () => {
+      let response: Response;
+      try {
+        response = await fetch(url.toString(), init);
+      } catch (error) {
+        log.error({ error, method, path }, "unipile network error");
+        throw new UnipileError("Network error calling Unipile API", {
           correlationId,
-          context: { method, path, responseBody: errorBody },
-        },
-      );
-    }
+          context: { method, path },
+          cause: error,
+        });
+      }
 
-    const data = (await response.json()) as T;
-    log.debug({ method, path, status: response.status }, "unipile response ok");
-    return data;
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        log.error(
+          { status: response.status, errorBody, method, path },
+          "unipile api error",
+        );
+        throw new UnipileError(
+          `Unipile API error: ${response.status} ${response.statusText}`,
+          {
+            statusCode: response.status,
+            correlationId,
+            context: { method, path, responseBody: errorBody },
+          },
+        );
+      }
+
+      const data = (await response.json()) as T;
+      log.debug({ method, path, status: response.status }, "unipile response ok");
+      return data;
+    }));
   }
 
   // ─── Search ─────────────────────────────────────────────────────────

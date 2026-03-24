@@ -34,7 +34,16 @@ import {
   Clock,
   Shield,
   Link,
+  Zap,
+  AlertTriangle,
+  CheckCircle2,
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  XCircle,
 } from "lucide-react";
+import { useCircuitBreaker } from "@/hooks/useCircuitBreaker";
+import { useAccountHealth } from "@/hooks/useAccountHealth";
 
 const TIMEZONES = [
   "Asia/Kolkata",
@@ -65,6 +74,14 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const {
+    status: cbStatus,
+    loading: cbLoading,
+    resetting: cbResetting,
+    refetch: cbRefetch,
+    reset: cbReset,
+  } = useCircuitBreaker();
+  const { health, loading: healthLoading, refetch: healthRefetch } = useAccountHealth();
 
   // Form state
   const [unipileAccountId, setUnipileAccountId] = useState("");
@@ -465,15 +482,32 @@ export default function SettingsPage() {
       {/* ─── Account Health ────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="size-4" />
-            Account Health
-          </CardTitle>
-          <CardDescription>
-            Monitor your LinkedIn account health and daily usage counters.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="size-4" />
+                Account Health
+              </CardTitle>
+              <CardDescription className="mt-1">
+                LinkedIn account status, daily usage counters, and error
+                monitoring.
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={healthRefetch}
+              disabled={healthLoading}
+              aria-label="Refresh health data"
+            >
+              <RefreshCw
+                className={`size-4 ${healthLoading ? "animate-spin" : ""}`}
+              />
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Daily counters */}
           {settings ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               <div className="rounded-lg border p-3">
@@ -506,6 +540,230 @@ export default function SettingsPage() {
           ) : (
             <p className="text-sm text-muted-foreground">
               No data available yet. Save your settings to get started.
+            </p>
+          )}
+
+          <Separator />
+
+          {/* Acceptance rate + error count from health endpoint */}
+          {healthLoading && !health ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 rounded-lg" />
+              ))}
+            </div>
+          ) : health ? (
+            <>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                {/* Acceptance rate */}
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">
+                    Invite Acceptance Rate
+                  </p>
+                  {health.account_health.acceptance_rate !== null ? (
+                    <div className="flex items-center gap-1.5">
+                      <p
+                        className={`text-xl font-bold tabular-nums ${
+                          health.account_health.acceptance_rate_warning
+                            ? "text-orange-600"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {health.account_health.acceptance_rate}%
+                      </p>
+                      {health.account_health.acceptance_rate_warning ? (
+                        <TrendingDown className="size-4 text-orange-500" />
+                      ) : (
+                        <TrendingUp className="size-4 text-green-500" />
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      —{" "}
+                      <span className="text-xs">
+                        (need {health.account_health.invites_sent_total > 0
+                          ? `${20 - health.account_health.invites_sent_total} more`
+                          : "20+"}{" "}
+                        invites)
+                      </span>
+                    </p>
+                  )}
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {health.account_health.invites_accepted_total}/
+                    {health.account_health.invites_sent_total} accepted
+                  </p>
+                </div>
+
+                {/* LinkedIn account age */}
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">
+                    LinkedIn Account Age
+                  </p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Not tracked
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Verify in LinkedIn settings
+                  </p>
+                </div>
+
+                {/* Recent errors */}
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">
+                    Errors (last 7d)
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p
+                      className={`text-xl font-bold tabular-nums ${
+                        health.account_health.recent_error_count > 0
+                          ? "text-destructive"
+                          : "text-foreground"
+                      }`}
+                    >
+                      {health.account_health.recent_error_count}
+                    </p>
+                    {health.account_health.recent_error_count > 0 ? (
+                      <XCircle className="size-4 text-destructive" />
+                    ) : (
+                      <CheckCircle2 className="size-4 text-green-500" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning if acceptance rate is low */}
+              {health.account_health.acceptance_rate_warning && (
+                <div className="flex items-start gap-2 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-300">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <p>
+                    <span className="font-medium">
+                      Acceptance rate below 20%.
+                    </span>{" "}
+                    Active campaigns were automatically paused. Review your ICP
+                    targeting and connection request message quality before
+                    reactivating.
+                  </p>
+                </div>
+              )}
+            </>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {/* ─── Circuit Breaker ───────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="size-4" />
+            Unipile Circuit Breaker
+          </CardTitle>
+          <CardDescription>
+            Automatically pauses outreach when the Unipile API fails{" "}
+            consecutively. Recovers after 30 minutes via a test call.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {cbLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Loading status…
+            </div>
+          ) : cbStatus ? (
+            <>
+              {/* State badge + description */}
+              <div className="flex items-center gap-3">
+                {cbStatus.state === "CLOSED" && (
+                  <Badge className="gap-1.5 bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400">
+                    <CheckCircle2 className="size-3" />
+                    CLOSED — Healthy
+                  </Badge>
+                )}
+                {cbStatus.state === "OPEN" && (
+                  <Badge variant="destructive" className="gap-1.5">
+                    <AlertTriangle className="size-3" />
+                    OPEN — Blocking requests
+                  </Badge>
+                )}
+                {cbStatus.state === "HALF_OPEN" && (
+                  <Badge className="gap-1.5 bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400">
+                    <RefreshCw className="size-3" />
+                    HALF_OPEN — Testing recovery
+                  </Badge>
+                )}
+              </div>
+
+              {/* Metrics grid */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Failures</p>
+                  <p className="text-xl font-bold tabular-nums">
+                    {cbStatus.failures}
+                    <span className="text-sm font-normal text-muted-foreground">/3</span>
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">State</p>
+                  <p className="text-sm font-medium">{cbStatus.state}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Last Failure</p>
+                  <p className="text-sm font-medium">
+                    {cbStatus.lastFailureAt
+                      ? new Date(cbStatus.lastFailureAt).toLocaleTimeString()
+                      : "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Next Retry</p>
+                  <p className="text-sm font-medium">
+                    {cbStatus.nextRetryAt
+                      ? new Date(cbStatus.nextRetryAt).toLocaleTimeString()
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={cbRefetch}
+                  disabled={cbLoading}
+                >
+                  <RefreshCw className="size-4" />
+                  Refresh
+                </Button>
+                {cbStatus.state !== "CLOSED" && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={async () => {
+                      await cbReset();
+                      toast.success("Circuit breaker reset to CLOSED");
+                    }}
+                    disabled={cbResetting}
+                  >
+                    {cbResetting ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Zap className="size-4" />
+                    )}
+                    {cbResetting ? "Resetting…" : "Force Reset to CLOSED"}
+                  </Button>
+                )}
+              </div>
+
+              {cbStatus.state === "OPEN" && (
+                <p className="text-xs text-muted-foreground">
+                  All active campaigns were automatically paused when the circuit
+                  opened. After resetting, re-activate your campaigns manually.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Unable to load circuit breaker status.
             </p>
           )}
         </CardContent>

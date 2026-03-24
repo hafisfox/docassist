@@ -4,6 +4,63 @@ import { updateSettingsSchema } from "@/lib/validators";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import type { Settings } from "@/types/database";
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+interface SettingsWithUsage extends Settings {
+  /** How many invites remain for today */
+  remaining_daily_invites: number;
+  /** How many messages remain for today */
+  remaining_daily_messages: number;
+  /** Profile view remaining (no DB counter yet — returns the configured max) */
+  remaining_daily_profile_views: number;
+}
+
+/** Reset today's counters if the UTC calendar day has rolled over. */
+async function resetCountersIfNewDay(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  settings: Settings
+): Promise<Settings> {
+  const resetAt = new Date(settings.counters_reset_at);
+  const now = new Date();
+  const isNewDay =
+    now.getUTCFullYear() !== resetAt.getUTCFullYear() ||
+    now.getUTCMonth() !== resetAt.getUTCMonth() ||
+    now.getUTCDate() !== resetAt.getUTCDate();
+
+  if (!isNewDay) return settings;
+
+  const { data: updated, error } = await supabase
+    .from("settings")
+    .update({
+      invites_sent_today: 0,
+      messages_sent_today: 0,
+      counters_reset_at: now.toISOString(),
+    })
+    .eq("user_id", settings.user_id)
+    .select("*")
+    .single();
+
+  if (error || !updated) return settings;
+  return updated as Settings;
+}
+
+function withUsageCounts(settings: Settings): SettingsWithUsage {
+  return {
+    ...settings,
+    remaining_daily_invites: Math.max(
+      0,
+      settings.max_daily_invites - settings.invites_sent_today
+    ),
+    remaining_daily_messages: Math.max(
+      0,
+      settings.max_daily_messages - settings.messages_sent_today
+    ),
+    // profile_views_today not tracked in DB yet
+    remaining_daily_profile_views: settings.max_daily_profile_views,
+  };
+}
+
 export async function GET() {
   const correlationId = createCorrelationId();
   const log = withCorrelationId(correlationId);
@@ -38,15 +95,14 @@ export async function GET() {
         .single();
       const typedNewSettings = newSettings as Settings | null;
 
-      if (insertError) {
+      if (insertError || !typedNewSettings) {
         log.error({ error: insertError }, "Failed to create default settings");
         return NextResponse.json(
           { error: "Failed to create settings" },
           { status: 500 }
         );
       }
-
-      return NextResponse.json(typedNewSettings);
+      return NextResponse.json(withUsageCounts(typedNewSettings));
     }
 
     if (error) {
@@ -57,7 +113,8 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(settings);
+    const fresh = await resetCountersIfNewDay(supabase, settings as unknown as Settings);
+    return NextResponse.json(withUsageCounts(fresh));
   } catch (err) {
     log.error({ error: err }, "Unexpected error in GET /api/settings");
     return NextResponse.json(
@@ -139,7 +196,7 @@ export async function PATCH(request: Request) {
 
     log.info({ userId: user.id, correlationId }, "Settings updated");
 
-    return NextResponse.json(typedSettings);
+    return NextResponse.json(typedSettings ? withUsageCounts(typedSettings) : null);
   } catch (err) {
     log.error({ error: err }, "Unexpected error in PATCH /api/settings");
     return NextResponse.json(

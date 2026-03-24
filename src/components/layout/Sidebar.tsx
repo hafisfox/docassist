@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { DailyUsageMeters } from "@/components/layout/DailyUsageMeters";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -34,9 +35,10 @@ export { navItems };
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  inboxUnreadCount?: number;
 }
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, inboxUnreadCount = 0 }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -72,6 +74,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             const isActive =
               pathname === item.href ||
               (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            const isInbox = item.href === "/inbox";
+            const showBadge = isInbox && inboxUnreadCount > 0;
 
             return (
               <li key={item.href}>
@@ -86,14 +90,37 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className="size-4 shrink-0" />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {/* Icon with dot badge when collapsed */}
+                  <span className="relative shrink-0">
+                    <item.icon className="size-4" />
+                    {showBadge && collapsed && (
+                      <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-destructive" />
+                    )}
+                  </span>
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {showBadge && (
+                        <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+                          {inboxUnreadCount > 9 ? "9+" : inboxUnreadCount}
+                        </span>
+                      )}
+                    </>
+                  )}
                 </Link>
               </li>
             );
           })}
         </ul>
       </nav>
+
+      {/* Daily usage meters — hidden when collapsed */}
+      {!collapsed && (
+        <>
+          <Separator />
+          <DailyUsageMeters />
+        </>
+      )}
 
       <Separator />
 

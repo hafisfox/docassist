@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, LogOut, Menu, User } from "lucide-react";
+import { Bell, LogOut, Menu, Search, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -33,9 +33,10 @@ function getPageTitle(pathname: string): string {
 
 interface TopBarProps {
   onMobileMenuOpen: () => void;
+  onSearchOpen?: () => void;
 }
 
-export function TopBar({ onMobileMenuOpen }: TopBarProps) {
+export function TopBar({ onMobileMenuOpen, onSearchOpen }: TopBarProps) {
   const pathname = usePathname();
   const title = getPageTitle(pathname);
 
@@ -56,6 +57,23 @@ export function TopBar({ onMobileMenuOpen }: TopBarProps) {
       <h1 className="font-heading text-base font-semibold">{title}</h1>
 
       <div className="ml-auto flex items-center gap-2">
+        {/* Search trigger */}
+        {onSearchOpen && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onSearchOpen}
+            className="hidden items-center gap-2 text-muted-foreground md:flex"
+            aria-label="Search (Cmd+K)"
+          >
+            <Search className="size-3.5" />
+            <span className="text-xs">Search...</span>
+            <kbd className="pointer-events-none ml-1 hidden select-none rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] lg:inline-flex">
+              ⌘K
+            </kbd>
+          </Button>
+        )}
+
         {/* Notification bell */}
         <Button variant="ghost" size="icon-sm" aria-label="Notifications">
           <Bell className="size-4" />

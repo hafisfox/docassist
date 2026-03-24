@@ -156,6 +156,22 @@ export async function PATCH(
 
     log.info({ leadId: id }, "lead updated");
 
+    // ── Log activity when status changes ─────────────────────────────
+    if (parsed.data.status && lead) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("activities").insert({
+        user_id: user.id,
+        lead_id: id,
+        campaign_id: lead.campaign_id ?? null,
+        activity_type: "status_changed",
+        description: `Status changed to ${parsed.data.status}`,
+        metadata: {
+          new_status: parsed.data.status,
+          correlation_id: correlationId,
+        },
+      });
+    }
+
     return NextResponse.json({ lead, correlationId });
   } catch (err) {
     if (err instanceof AppError) {
@@ -231,6 +247,22 @@ export async function DELETE(
     }
 
     log.info({ leadId: id }, "lead soft-deleted");
+
+    // ── Log activity ─────────────────────────────────────────────────
+    if (lead) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("activities").insert({
+        user_id: user.id,
+        lead_id: id,
+        campaign_id: lead.campaign_id ?? null,
+        activity_type: "status_changed",
+        description: "Lead marked as Do Not Contact",
+        metadata: {
+          new_status: "do_not_contact",
+          correlation_id: correlationId,
+        },
+      });
+    }
 
     return NextResponse.json({ lead, correlationId });
   } catch (err) {

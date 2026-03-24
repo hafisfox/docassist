@@ -98,6 +98,25 @@ export async function POST(request: Request) {
       "bulk import completed",
     );
 
+    // ── Log a single aggregate activity for the bulk import ──────────
+    if (inserted.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("activities").insert({
+        user_id: user.id,
+        lead_id: null,
+        campaign_id: null,
+        activity_type: "lead_created",
+        description: `Bulk import: ${inserted.length} leads created`,
+        metadata: {
+          imported_count: inserted.length,
+          failed_batches: errors.length,
+          total_requested: leadsInput.length,
+          source: "bulk_import",
+          correlation_id: correlationId,
+        },
+      });
+    }
+
     return NextResponse.json(
       {
         imported: inserted.length,

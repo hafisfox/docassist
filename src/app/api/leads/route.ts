@@ -202,6 +202,22 @@ export async function POST(request: Request) {
 
     log.info({ leadId: lead?.id }, "lead created");
 
+    // ── Log activity ─────────────────────────────────────────────────
+    if (lead) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("activities").insert({
+        user_id: user.id,
+        lead_id: lead.id,
+        campaign_id: lead.campaign_id ?? null,
+        activity_type: "lead_created",
+        description: `Lead created: ${lead.full_name}`,
+        metadata: {
+          source: lead.source,
+          correlation_id: correlationId,
+        },
+      });
+    }
+
     return NextResponse.json({ lead, correlationId }, { status: 201 });
   } catch (err) {
     if (err instanceof AppError) {

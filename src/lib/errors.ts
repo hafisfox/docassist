@@ -87,3 +87,17 @@ export class RateLimitError extends AppError {
     this.name = "RateLimitError";
   }
 }
+
+export class CircuitOpenError extends AppError {
+  constructor(
+    message: string,
+    options: {
+      correlationId?: string;
+      context?: Record<string, unknown>;
+      cause?: unknown;
+    } = {}
+  ) {
+    super(message, { statusCode: 503, ...options });
+    this.name = "CircuitOpenError";
+  }
+}

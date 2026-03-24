@@ -15,9 +15,10 @@ import { navItems } from "@/components/layout/Sidebar";
 interface MobileNavProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  inboxUnreadCount?: number;
 }
 
-export function MobileNav({ open, onOpenChange }: MobileNavProps) {
+export function MobileNav({ open, onOpenChange, inboxUnreadCount = 0 }: MobileNavProps) {
   const pathname = usePathname();
 
   return (
@@ -42,6 +43,8 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              const isInbox = item.href === "/inbox";
+              const showBadge = isInbox && inboxUnreadCount > 0;
 
               return (
                 <li key={item.href}>
@@ -56,7 +59,12 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
                     )}
                   >
                     <item.icon className="size-4 shrink-0" />
-                    <span>{item.label}</span>
+                    <span className="flex-1">{item.label}</span>
+                    {showBadge && (
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+                        {inboxUnreadCount > 9 ? "9+" : inboxUnreadCount}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );

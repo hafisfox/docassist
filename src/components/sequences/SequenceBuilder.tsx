@@ -120,15 +120,11 @@ function AddStepButton({
     <div className="flex items-center justify-center py-1">
       <div className="h-6 w-px bg-border" />
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="absolute size-6 rounded-full"
-          >
-            <PlusIcon className="size-3" />
-            <span className="sr-only">Add step</span>
-          </Button>
+        <DropdownMenuTrigger
+          className="absolute inline-flex size-6 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
+        >
+          <PlusIcon className="size-3" />
+          <span className="sr-only">Add step</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="center">
           {ADD_STEP_OPTIONS.map((opt) => (

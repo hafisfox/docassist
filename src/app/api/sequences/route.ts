@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createSequenceSchema } from "@/lib/validators";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { AppError } from "@/lib/errors";
-import type { Sequence } from "@/types/database";
+import type { Sequence, SequenceStep, SequenceEnrollment } from "@/types/database";
 
 export async function GET(request: NextRequest) {
   const correlationId = createCorrelationId();
@@ -55,17 +55,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch step counts for each sequence
-    const sequenceIds = (sequences ?? []).map((s) => s.id);
+    const seqRows = (sequences ?? []) as Sequence[];
+    const sequenceIds = seqRows.map((s) => s.id);
     let stepCounts: Record<string, number> = {};
 
     if (sequenceIds.length > 0) {
-      const { data: steps, error: stepsError } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
+      const { data: steps, error: stepsError } = await (supabase as any)
         .from("sequence_steps")
         .select("sequence_id")
         .in("sequence_id", sequenceIds);
+      const stepRows = (steps ?? []) as Pick<SequenceStep, "sequence_id">[];
 
-      if (!stepsError && steps) {
-        stepCounts = steps.reduce<Record<string, number>>((acc, step) => {
+      if (!stepsError) {
+        stepCounts = stepRows.reduce<Record<string, number>>((acc, step) => {
           acc[step.sequence_id] = (acc[step.sequence_id] ?? 0) + 1;
           return acc;
         }, {});
@@ -76,20 +79,22 @@ export async function GET(request: NextRequest) {
     let usageCounts: Record<string, number> = {};
 
     if (sequenceIds.length > 0) {
-      const { data: enrollments, error: enrollError } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
+      const { data: enrollments, error: enrollError } = await (supabase as any)
         .from("sequence_enrollments")
         .select("sequence_id")
         .in("sequence_id", sequenceIds);
+      const enrollRows = (enrollments ?? []) as Pick<SequenceEnrollment, "sequence_id">[];
 
-      if (!enrollError && enrollments) {
-        usageCounts = enrollments.reduce<Record<string, number>>((acc, e) => {
+      if (!enrollError) {
+        usageCounts = enrollRows.reduce<Record<string, number>>((acc, e) => {
           acc[e.sequence_id] = (acc[e.sequence_id] ?? 0) + 1;
           return acc;
         }, {});
       }
     }
 
-    const sequencesWithCounts = (sequences ?? []).map((s) => ({
+    const sequencesWithCounts = seqRows.map((s) => ({
       ...s,
       step_count: stepCounts[s.id] ?? 0,
       usage_count: usageCounts[s.id] ?? 0,

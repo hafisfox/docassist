@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useRef, useState } from "react"
+import { SparklesIcon, LoaderCircleIcon } from "lucide-react"
+import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -55,6 +57,7 @@ export function TemplateEditor({
     (template?.category as TemplateCategory) ?? "message"
   )
   const [body, setBody] = useState(template?.body ?? "")
+  const [aiLoading, setAiLoading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isEditing = template !== null
@@ -104,6 +107,26 @@ export function TemplateEditor({
       textarea.setSelectionRange(cursorPos, cursorPos)
     })
   }, [body])
+
+  const handleAIPersonalize = async () => {
+    if (!body.trim() || aiLoading) return
+    setAiLoading(true)
+    try {
+      const res = await fetch("/api/messages/personalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template: body, category }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? "AI request failed")
+      setBody((data as { text: string }).text)
+      toast.success("Template improved by AI")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "AI personalization failed")
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -162,11 +185,29 @@ export function TemplateEditor({
             </Select>
           </div>
 
-          {/* Body with variable inserter */}
+          {/* Body with variable inserter + AI button */}
           <div className="grid gap-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="template-body">Body</Label>
-              <VariableInserter onInsert={handleInsertVariable} />
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={handleAIPersonalize}
+                  disabled={aiLoading || !body.trim()}
+                  title="Improve template with AI"
+                >
+                  {aiLoading ? (
+                    <LoaderCircleIcon className="size-3.5 animate-spin" />
+                  ) : (
+                    <SparklesIcon className="size-3.5" />
+                  )}
+                  {aiLoading ? "Improving…" : "AI Improve"}
+                </Button>
+                <VariableInserter onInsert={handleInsertVariable} />
+              </div>
             </div>
             <Textarea
               ref={textareaRef}

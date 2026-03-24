@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   SendIcon,
   SparklesIcon,
   MegaphoneIcon,
   SaveIcon,
   LoaderCircleIcon,
+  UserPlusIcon,
 } from "lucide-react";
+import { SendConnectionDialog } from "@/components/leads/SendConnectionDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -78,6 +80,20 @@ function LeadQuickActions({
   const [changingStatus, setChangingStatus] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
+  const [remainingInvites, setRemainingInvites] = useState<number | null>(null);
+
+  // Fetch remaining daily invite count to show on button
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { remaining_daily_invites?: number } | null) => {
+        if (data?.remaining_daily_invites !== undefined) {
+          setRemainingInvites(data.remaining_daily_invites);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   if (loading || !lead) {
     return <QuickActionsSkeleton />;
@@ -183,6 +199,28 @@ function LeadQuickActions({
 
           {/* Action Buttons */}
           <div className="flex flex-col gap-2 pt-1">
+            {/* ── Send Connection Request ── */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start"
+              disabled={
+                (remainingInvites !== null && remainingInvites <= 0) ||
+                lead.status === "invite_sent" ||
+                lead.status === "invite_accepted" ||
+                lead.status === "do_not_contact"
+              }
+              onClick={() => setConnectDialogOpen(true)}
+            >
+              <UserPlusIcon className="mr-1.5 size-4" />
+              Connect
+              {remainingInvites !== null && (
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {remainingInvites} left
+                </span>
+              )}
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -238,6 +276,14 @@ function LeadQuickActions({
           </Button>
         </CardContent>
       </Card>
+
+      {/* Send Connection Request dialog */}
+      <SendConnectionDialog
+        lead={lead}
+        open={connectDialogOpen}
+        onOpenChange={setConnectDialogOpen}
+        onSuccess={(remaining) => setRemainingInvites(remaining)}
+      />
     </div>
   );
 }

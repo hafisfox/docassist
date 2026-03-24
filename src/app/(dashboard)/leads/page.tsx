@@ -7,21 +7,40 @@ import type { Lead, LeadStatus } from "@/types/database"
 import { SearchInput } from "@/components/shared/SearchInput"
 import { Pagination } from "@/components/shared/Pagination"
 import { EmptyState } from "@/components/shared/EmptyState"
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
+import { ErrorState } from "@/components/shared/ErrorState"
 import { LeadFilters } from "@/components/leads/LeadFilters"
 import { LeadTable } from "@/components/leads/LeadTable"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import {
   UsersIcon,
   PlusIcon,
-  SearchIcon,
   DownloadIcon,
   TrashIcon,
   TagIcon,
   FolderIcon,
+  ChevronDownIcon,
 } from "lucide-react"
+
+// Statuses that make sense to set manually
+const MANUAL_STATUS_OPTIONS: Array<{ value: LeadStatus; label: string }> = [
+  { value: "new", label: "New" },
+  { value: "enriched", label: "Enriched" },
+  { value: "interested", label: "Interested" },
+  { value: "not_interested", label: "Not Interested" },
+  { value: "meeting_booked", label: "Meeting Booked" },
+  { value: "converted", label: "Converted" },
+  { value: "do_not_contact", label: "Do Not Contact" },
+]
 
 function LeadsContent() {
   const searchParams = useSearchParams()
@@ -48,7 +67,7 @@ function LeadsContent() {
   )
 
   // Data fetching
-  const { leads, pagination, loading, error, fetchLeads, deleteLead } =
+  const { leads, pagination, loading, error, fetchLeads, deleteLead, bulkAction, exportLeads } =
     useLeads()
 
   // Selection state
@@ -58,7 +77,11 @@ function LeadsContent() {
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  // Campaigns for filter dropdown
+  // Bulk delete confirmation
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [bulkLoading, setBulkLoading] = useState(false)
+
+  // Campaigns for filter dropdown and bulk "add to campaign"
   const [campaigns, setCampaigns] = useState<
     Array<{ id: string; name: string }>
   >([])
@@ -84,9 +107,10 @@ function LeadsContent() {
     [searchParams, router, pathname]
   )
 
-  // Fetch leads whenever URL params change
+  // Rebuild API filters from current URL params (used to refetch after mutations)
   const searchParamsString = searchParams.toString()
-  useEffect(() => {
+
+  const buildApiFilters = useCallback(() => {
     const params = new URLSearchParams(searchParamsString)
     const apiFilters: Record<string, string | number> = {
       page: Number(params.get("page")) || 1,
@@ -94,22 +118,23 @@ function LeadsContent() {
       sort_by: params.get("sort_by") || "created_at",
       sort_order: params.get("sort_order") || "desc",
     }
-
     const search = params.get("search")
     const status = params.get("status")
     const campaignId = params.get("campaign_id")
     const icpSegment = params.get("icp_segment")
     const location = params.get("location")
-
     if (search) apiFilters.search = search
-    // Pass single status to API; multi-status requires API update
     if (status && !status.includes(",")) apiFilters.status = status
     if (campaignId) apiFilters.campaign_id = campaignId
     if (icpSegment) apiFilters.icp_segment = icpSegment
     if (location) apiFilters.location = location
+    return apiFilters
+  }, [searchParamsString])
 
-    fetchLeads(apiFilters)
-  }, [searchParamsString, fetchLeads])
+  // Fetch leads whenever URL params change
+  useEffect(() => {
+    fetchLeads(buildApiFilters())
+  }, [searchParamsString, fetchLeads, buildApiFilters])
 
   // Fetch campaigns on mount
   useEffect(() => {
@@ -174,6 +199,8 @@ function LeadsContent() {
     router.push(pathname, { scroll: false })
   }, [router, pathname])
 
+  // ── Single delete ────────────────────────────────────────────────────
+
   const handleDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
@@ -188,6 +215,77 @@ function LeadsContent() {
     }
   }
 
+  // ── Bulk action handlers ─────────────────────────────────────────────
+
+  const handleBulkChangeStatus = async (status: LeadStatus) => {
+    setBulkLoading(true)
+    try {
+      const result = await bulkAction(Array.from(selectedIds), "change_status", { status })
+      toast.success(`${result.updated} lead${result.updated !== 1 ? "s" : ""} updated to "${status}"`)
+      setSelectedIds(new Set())
+      fetchLeads(buildApiFilters())
+    } catch {
+      toast.error("Failed to change status")
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  const handleBulkAddToCampaign = async (campaignId: string) => {
+    setBulkLoading(true)
+    try {
+      const result = await bulkAction(Array.from(selectedIds), "add_to_campaign", { campaign_id: campaignId })
+      const campaign = campaigns.find((c) => c.id === campaignId)
+      toast.success(`${result.updated} lead${result.updated !== 1 ? "s" : ""} added to ${campaign?.name ?? "campaign"}`)
+      setSelectedIds(new Set())
+      fetchLeads(buildApiFilters())
+    } catch {
+      toast.error("Failed to add leads to campaign")
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  const handleExportSelected = async () => {
+    setBulkLoading(true)
+    try {
+      await exportLeads({ ids: Array.from(selectedIds) })
+      toast.success("Export downloaded")
+    } catch {
+      toast.error("Export failed")
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  const handleExportAll = async () => {
+    try {
+      await exportLeads({
+        status: filters.statuses.length === 1 ? filters.statuses[0] : undefined,
+        campaign_id: filters.campaignId || undefined,
+        search: filters.search || undefined,
+      })
+      toast.success("Export downloaded")
+    } catch {
+      toast.error("Export failed")
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    setBulkLoading(true)
+    try {
+      const result = await bulkAction(Array.from(selectedIds), "delete")
+      toast.success(`${result.updated} lead${result.updated !== 1 ? "s" : ""} deleted`)
+      setSelectedIds(new Set())
+      setBulkDeleteConfirm(false)
+      fetchLeads(buildApiFilters())
+    } catch {
+      toast.error("Failed to delete leads")
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   // ── Computed values ──────────────────────────────────────────────────
 
   const activeFilterCount =
@@ -196,8 +294,6 @@ function LeadsContent() {
     (filters.location ? 1 : 0) +
     (filters.hospitalType ? 1 : 0) +
     (filters.campaignId ? 1 : 0)
-
-  const selectedLeads = leads.filter((l) => selectedIds.has(l.id))
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
@@ -212,6 +308,14 @@ function LeadsContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportAll}
+          >
+            <DownloadIcon className="size-3.5" />
+            Export
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -267,30 +371,73 @@ function LeadsContent() {
             {selectedIds.size} selected
           </span>
           <div className="ml-2 flex items-center gap-1.5">
-            <Button variant="outline" size="xs">
-              <FolderIcon className="size-3" />
-              Add to Campaign
-            </Button>
-            <Button variant="outline" size="xs">
-              <TagIcon className="size-3" />
-              Change Status
-            </Button>
-            <Button variant="outline" size="xs">
+            {/* Add to Campaign */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="outline" size="xs" disabled={bulkLoading}>
+                    <FolderIcon className="size-3" />
+                    Add to Campaign
+                    <ChevronDownIcon className="size-3" />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="start">
+                {campaigns.length > 0 ? (
+                  campaigns.map((c) => (
+                    <DropdownMenuItem
+                      key={c.id}
+                      onClick={() => handleBulkAddToCampaign(c.id)}
+                    >
+                      {c.name}
+                    </DropdownMenuItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem disabled>No campaigns found</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Change Status */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="outline" size="xs" disabled={bulkLoading}>
+                    <TagIcon className="size-3" />
+                    Change Status
+                    <ChevronDownIcon className="size-3" />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="start">
+                {MANUAL_STATUS_OPTIONS.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => handleBulkChangeStatus(opt.value)}
+                  >
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Export Selected */}
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={handleExportSelected}
+              disabled={bulkLoading}
+            >
               <DownloadIcon className="size-3" />
               Export Selected
             </Button>
+
+            {/* Delete */}
             <Button
               variant="destructive"
               size="xs"
-              onClick={() => {
-                if (selectedLeads.length === 1) {
-                  setDeleteTarget(selectedLeads[0])
-                } else {
-                  toast.info(
-                    `Bulk delete for ${selectedIds.size} leads — coming soon`
-                  )
-                }
-              }}
+              disabled={bulkLoading}
+              onClick={() => setBulkDeleteConfirm(true)}
             >
               <TrashIcon className="size-3" />
               Delete
@@ -301,9 +448,11 @@ function LeadsContent() {
 
       {/* Error state */}
       {error && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
+        <ErrorState
+          title="Failed to load leads"
+          message={error}
+          onRetry={() => fetchLeads({})}
+        />
       )}
 
       {/* Table or Empty State */}
@@ -349,7 +498,7 @@ function LeadsContent() {
         />
       )}
 
-      {/* Delete Confirmation */}
+      {/* Single Delete Confirmation */}
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
@@ -361,6 +510,20 @@ function LeadsContent() {
         variant="destructive"
         confirmLabel="Delete"
         loading={deleting}
+      />
+
+      {/* Bulk Delete Confirmation */}
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={(open) => {
+          if (!open) setBulkDeleteConfirm(false)
+        }}
+        title={`Delete ${selectedIds.size} lead${selectedIds.size !== 1 ? "s" : ""}`}
+        description={`Are you sure you want to delete ${selectedIds.size} lead${selectedIds.size !== 1 ? "s" : ""}? They will be marked as Do Not Contact.`}
+        onConfirm={handleBulkDelete}
+        variant="destructive"
+        confirmLabel="Delete All"
+        loading={bulkLoading}
       />
     </div>
   )
@@ -388,8 +551,10 @@ function LeadsPageFallback() {
 
 export default function LeadsPage() {
   return (
-    <Suspense fallback={<LeadsPageFallback />}>
-      <LeadsContent />
-    </Suspense>
+    <ErrorBoundary section="Leads">
+      <Suspense fallback={<LeadsPageFallback />}>
+        <LeadsContent />
+      </Suspense>
+    </ErrorBoundary>
   )
 }

@@ -4,6 +4,8 @@ import { Suspense, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSequences, type SequenceWithMeta } from "@/hooks/useSequences"
 import { EmptyState } from "@/components/shared/EmptyState"
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
+import { ErrorState } from "@/components/shared/ErrorState"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -175,9 +177,11 @@ function SequencesContent() {
 
       {/* Error state */}
       {error && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
+        <ErrorState
+          title="Failed to load sequences"
+          message={error}
+          onRetry={fetchSequences}
+        />
       )}
 
       {/* Content */}
@@ -294,8 +298,10 @@ function SequencesPageFallback() {
 
 export default function SequencesPage() {
   return (
-    <Suspense fallback={<SequencesPageFallback />}>
-      <SequencesContent />
-    </Suspense>
+    <ErrorBoundary section="Sequences">
+      <Suspense fallback={<SequencesPageFallback />}>
+        <SequencesContent />
+      </Suspense>
+    </ErrorBoundary>
   )
 }

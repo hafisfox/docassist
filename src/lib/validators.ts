@@ -152,6 +152,39 @@ export const createCampaignSchema = z.object({
 
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 
+export const updateCampaignSchema = z.object({
+  name: z.string().min(1, "Campaign name is required").optional(),
+  description: z.string().optional(),
+  status: z.enum(campaignStatusValues).optional(),
+  sequence_id: z.string().uuid().nullable().optional(),
+  icp_segments: z.array(z.enum(icpSegmentValues)).optional(),
+  target_titles: z.array(z.string()).optional(),
+  target_locations: z.array(z.string()).optional(),
+  target_companies: z.array(z.string()).optional(),
+  daily_invite_limit: z.number().int().min(1).max(25).optional(),
+  daily_message_limit: z.number().int().min(1).max(150).optional(),
+});
+
+export type UpdateCampaignInput = z.infer<typeof updateCampaignSchema>;
+
+export const listCampaignsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  status: z.enum(campaignStatusValues).optional(),
+  search: z.string().max(200).optional(),
+  sort_by: z.enum([
+    "created_at",
+    "updated_at",
+    "name",
+    "status",
+    "total_leads",
+    "started_at",
+  ] as const).default("created_at"),
+  sort_order: z.enum(["asc", "desc"] as const).default("desc"),
+});
+
+export type ListCampaignsQuery = z.infer<typeof listCampaignsQuerySchema>;
+
 // ─── Template ────────────────────────────────────────────────────────
 
 const templateCategoryValues = [
@@ -362,6 +395,105 @@ export const linkedinSearchApiInputSchema = z
   );
 
 export type LinkedinSearchApiInput = z.infer<typeof linkedinSearchApiInputSchema>;
+
+// ─── LinkedIn Send Invite ─────────────────────────────────────────────
+
+export const sendInviteSchema = z.object({
+  lead_id: z.string().uuid("Invalid lead ID"),
+  message: z
+    .string()
+    .max(300, "Connection request notes must be 300 characters or fewer")
+    .optional(),
+});
+
+export type SendInviteInput = z.infer<typeof sendInviteSchema>;
+
+// ─── LinkedIn Send Message ────────────────────────────────────────────
+
+export const sendMessageSchema = z
+  .object({
+    lead_id: z.string().uuid("Invalid lead ID").optional(),
+    chat_id: z.string().min(1).optional(),
+    text: z.string().min(1, "Message text is required").max(1900, "Message must be 1900 characters or fewer"),
+  })
+  .refine((data) => data.lead_id || data.chat_id, {
+    message: "Either lead_id or chat_id is required",
+  });
+
+export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+
+// ─── LinkedIn Chats ───────────────────────────────────────────────────
+
+export const listChatsQuerySchema = z.object({
+  cursor: z.string().optional(),
+});
+
+export type ListChatsQuery = z.infer<typeof listChatsQuerySchema>;
+
+export const getChatMessagesQuerySchema = z.object({
+  cursor: z.string().optional(),
+});
+
+export type GetChatMessagesQuery = z.infer<typeof getChatMessagesQuerySchema>;
+
+// ─── Bulk Lead Action ─────────────────────────────────────────────────
+
+const bulkActionValues = [
+  "change_status",
+  "add_to_campaign",
+  "add_tags",
+  "delete",
+] as const;
+
+export const bulkActionSchema = z
+  .object({
+    lead_ids: z
+      .array(z.string().uuid())
+      .min(1, "At least one lead is required")
+      .max(500, "Maximum 500 leads per bulk action"),
+    action: z.enum(bulkActionValues),
+    status: z.enum(leadStatusValues).optional(),
+    campaign_id: z.string().uuid().optional(),
+    tags: z.array(z.string().max(50)).max(20).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.action === "change_status" && !data.status) {
+      ctx.addIssue({
+        code: "custom",
+        message: "status is required for change_status action",
+        path: ["status"],
+      });
+    }
+    if (data.action === "add_to_campaign" && !data.campaign_id) {
+      ctx.addIssue({
+        code: "custom",
+        message: "campaign_id is required for add_to_campaign action",
+        path: ["campaign_id"],
+      });
+    }
+    if (data.action === "add_tags" && (!data.tags || data.tags.length === 0)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "tags is required for add_tags action",
+        path: ["tags"],
+      });
+    }
+  });
+
+export type BulkActionInput = z.infer<typeof bulkActionSchema>;
+
+// ─── Export Leads Query ───────────────────────────────────────────────
+
+export const exportLeadsQuerySchema = z.object({
+  status: z.enum(leadStatusValues).optional(),
+  campaign_id: z.string().uuid().optional(),
+  icp_segment: z.enum(icpSegmentValues).optional(),
+  location: z.string().max(200).optional(),
+  search: z.string().max(200).optional(),
+  ids: z.string().max(10000).optional(), // comma-separated UUIDs
+});
+
+export type ExportLeadsQuery = z.infer<typeof exportLeadsQuerySchema>;
 
 // ─── Shared enum schemas (for reuse in other validators) ─────────────
 

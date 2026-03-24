@@ -87,8 +87,8 @@ export async function GET(
 
     return NextResponse.json({
       sequence: {
-        ...sequence,
-        steps: steps ?? [],
+        ...(sequence as Sequence),
+        steps: (steps ?? []) as SequenceStep[],
         step_count: steps?.length ?? 0,
         usage_count: usageCount ?? 0,
       },

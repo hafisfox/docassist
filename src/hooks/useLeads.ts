@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import type { Lead } from "@/types/database";
 import type { CreateLeadInput, UpdateLeadInput, ListLeadsQuery } from "@/lib/validators";
 
@@ -22,6 +23,10 @@ interface BulkImportResult {
   imported: number;
   failed?: Array<{ batch: number; error: string }>;
   total_requested: number;
+}
+
+interface BulkActionResult {
+  updated: number;
 }
 
 async function apiFetch<T>(
@@ -49,6 +54,8 @@ export function useLeads() {
     loading: false,
     error: null,
   });
+
+  const supabaseRef = useRef(createClient());
 
   const fetchLeads = useCallback(async (filters?: Partial<ListLeadsQuery>) => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -180,6 +187,101 @@ export function useLeads() {
     }
   }, []);
 
+  const bulkAction = useCallback(
+    async (
+      leadIds: string[],
+      action: "change_status" | "add_to_campaign" | "add_tags" | "delete",
+      options?: { status?: string; campaign_id?: string; tags?: string[] },
+    ): Promise<BulkActionResult> => {
+      const data = await apiFetch<BulkActionResult>(
+        "/api/leads/bulk-action",
+        {
+          method: "POST",
+          body: JSON.stringify({ lead_ids: leadIds, action, ...options }),
+        },
+      );
+      return data;
+    },
+    [],
+  );
+
+  const exportLeads = useCallback(
+    async (filters?: {
+      status?: string;
+      campaign_id?: string;
+      ids?: string[];
+      search?: string;
+    }): Promise<void> => {
+      const params = new URLSearchParams();
+      if (filters?.status) params.set("status", filters.status);
+      if (filters?.campaign_id)
+        params.set("campaign_id", filters.campaign_id);
+      if (filters?.ids?.length)
+        params.set("ids", filters.ids.join(","));
+      if (filters?.search) params.set("search", filters.search);
+
+      const queryString = params.toString();
+      const url = `/api/leads/export${queryString ? `?${queryString}` : ""}`;
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error ?? "Export failed");
+      }
+
+      const blob = await res.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `leads-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+    },
+    [],
+  );
+
+  // Supabase Realtime: update a lead in-place when its status (or any field) changes
+  useEffect(() => {
+    const supabase = supabaseRef.current;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    async function subscribe() {
+      const { data } = await supabase.auth.getUser();
+      const userId = data.user?.id;
+      if (!userId) return;
+
+      channel = supabase
+        .channel("leads-list-realtime")
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "leads",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const updated = payload.new as Lead;
+            setState((prev) => ({
+              ...prev,
+              leads: prev.leads.map((l) => (l.id === updated.id ? updated : l)),
+            }));
+          },
+        )
+        .subscribe();
+    }
+
+    subscribe();
+
+    return () => {
+      if (channel) {
+        supabaseRef.current.removeChannel(channel);
+      }
+    };
+  }, []);
+
   return {
     ...state,
     fetchLeads,
@@ -187,5 +289,7 @@ export function useLeads() {
     updateLead,
     deleteLead,
     bulkImport,
+    bulkAction,
+    exportLeads,
   };
 }

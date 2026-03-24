@@ -14,9 +14,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DoctorAssist.AI — LinkedIn Outreach",
+  title: {
+    template: "%s | DoctorAssist.AI",
+    default: "DoctorAssist.AI — LinkedIn Outreach",
+  },
   description:
-    "LinkedIn outreach automation dashboard for DoctorAssist.AI",
+    "LinkedIn outreach automation dashboard for medical oncologists — DoctorAssist.AI",
 };
 
 export default function RootLayout({
