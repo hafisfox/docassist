@@ -133,12 +133,12 @@ function LinkedInSearchPanel() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            first_name: item.first_name,
-            last_name: item.last_name,
-            linkedin_public_id: item.public_identifier,
-            headline: item.headline,
-            company: item.current_company,
-            location: item.location,
+            first_name: item.first_name || "LinkedIn",
+            last_name: item.last_name || "Member",
+            linkedin_public_id: item.public_identifier || undefined,
+            headline: item.headline ?? undefined,
+            company: item.current_company ?? undefined,
+            location: item.location ?? undefined,
             source: "linkedin_search",
           }),
         });
