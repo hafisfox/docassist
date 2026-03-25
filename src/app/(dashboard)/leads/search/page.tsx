@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ArrowLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { LinkedInSearchPanel } from "@/components/leads/LinkedInSearchPanel";
 
 export default function LeadSearchPage() {
@@ -26,7 +27,9 @@ export default function LeadSearchPage() {
         </div>
       </div>
 
-      <LinkedInSearchPanel />
+      <ErrorBoundary section="LinkedIn Search">
+        <LinkedInSearchPanel />
+      </ErrorBoundary>
     </div>
   );
 }

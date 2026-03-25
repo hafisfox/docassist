@@ -8,7 +8,10 @@ import { getCircuitBreaker } from "@/lib/queue/circuitBreaker";
 import { withRetry } from "@/lib/utils/retry";
 import type {
   UnipileSearchParams,
+  UnipileRawSearchResponse,
+  UnipileRawSearchItem,
   UnipileSearchResponse,
+  UnipileSearchResultItem,
   UnipileProfile,
   UnipileSendInvitationParams,
   UnipileSendInvitationResponse,
@@ -156,7 +159,9 @@ export class UnipileClient {
     if (params.title) advancedKeywords.title = params.title;
     if (params.company) advancedKeywords.company = params.company;
 
-    return this.request<UnipileSearchResponse>("POST", "/linkedin/search", {
+    const requestPage = params.page ?? 1;
+
+    const raw = await this.request<UnipileRawSearchResponse>("POST", "/linkedin/search", {
       params: { account_id: accountId },
       body: {
         api: params.api ?? "classic",
@@ -165,10 +170,12 @@ export class UnipileClient {
         ...(Object.keys(advancedKeywords).length > 0 && {
           advanced_keywords: advancedKeywords,
         }),
-        ...(params.page && { page: params.page }),
+        ...(requestPage > 1 && { page: requestPage }),
       },
       correlationId: cid,
     });
+
+    return normalizeSearchResponse(raw, requestPage);
   }
 
   // ─── Profile ────────────────────────────────────────────────────────
@@ -335,6 +342,64 @@ export class UnipileClient {
       },
     );
   }
+}
+
+// ─── Response normalization ──────────────────────────────────────────────────
+
+function normalizeNetworkDistance(distance: string | null | undefined): string | null {
+  if (!distance) return null;
+  // Unipile returns "DISTANCE_1", "DISTANCE_2", "DISTANCE_3", "OUT_OF_NETWORK"
+  const match = distance.match(/DISTANCE_(\d)/);
+  if (match) return `${match[1]}st`.replace("2st", "2nd").replace("3st", "3rd");
+  if (distance === "OUT_OF_NETWORK") return "3rd+";
+  // Already a readable value (e.g. "1st", "2nd")
+  return distance;
+}
+
+function normalizeSearchItem(raw: UnipileRawSearchItem): UnipileSearchResultItem {
+  // Parse name into first/last if individual fields are missing
+  let firstName = raw.first_name ?? "";
+  let lastName = raw.last_name ?? "";
+  if ((!firstName || !lastName) && raw.name) {
+    const parts = raw.name.split(" ");
+    if (!firstName) firstName = parts[0] ?? "";
+    if (!lastName) lastName = parts.slice(1).join(" ") || "";
+  }
+
+  // Extract company from current_positions array if current_company is not set
+  let company = raw.current_company ?? null;
+  if (!company && raw.current_positions?.length) {
+    company = raw.current_positions[0]?.company_name ?? null;
+  }
+
+  return {
+    provider_id: raw.provider_id ?? raw.id ?? "",
+    public_identifier: raw.public_identifier ?? "",
+    first_name: firstName,
+    last_name: lastName,
+    headline: raw.headline ?? null,
+    location: raw.location ?? null,
+    profile_picture_url: raw.profile_picture_url ?? null,
+    current_company: company,
+    connection_degree: normalizeNetworkDistance(raw.network_distance ?? raw.connection_degree),
+  };
+}
+
+function normalizeSearchResponse(
+  raw: UnipileRawSearchResponse,
+  requestPage: number,
+): UnipileSearchResponse {
+  const items = (raw.items ?? []).map(normalizeSearchItem);
+
+  // Pagination: Unipile returns paging.total_count / paging.start / paging.page_count
+  // or the response may already have flat total_count / page / has_more fields
+  const paging = raw.paging;
+  const totalCount = paging?.total_count ?? raw.total_count ?? items.length;
+  const pageSize = paging?.page_count ?? (items.length || 10);
+  const page = raw.page ?? requestPage;
+  const hasMore = raw.has_more ?? (paging ? (paging.start ?? 0) + pageSize < totalCount : false);
+
+  return { items, total_count: totalCount, page, has_more: hasMore };
 }
 
 /** Lazily-initialized singleton */

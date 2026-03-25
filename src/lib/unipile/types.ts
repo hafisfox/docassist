@@ -20,6 +20,41 @@ export interface UnipileSearchParams {
   page?: number;
 }
 
+/** Raw item shape returned by the Unipile POST /linkedin/search endpoint */
+export interface UnipileRawSearchItem {
+  id?: string;
+  provider_id?: string;
+  public_identifier?: string;
+  name?: string;
+  first_name?: string;
+  last_name?: string;
+  headline?: string | null;
+  location?: string | null;
+  profile_picture_url?: string | null;
+  current_company?: string | null;
+  current_positions?: Array<{ company_name?: string; title?: string }>;
+  network_distance?: string | null;
+  connection_degree?: string | null;
+  pending_invitation?: boolean;
+  type?: string;
+}
+
+/** Raw response shape from the Unipile POST /linkedin/search endpoint */
+export interface UnipileRawSearchResponse {
+  object?: string;
+  items?: UnipileRawSearchItem[];
+  paging?: {
+    start?: number;
+    page_count?: number;
+    total_count?: number;
+  };
+  cursor?: string | null;
+  /** Flat fields that may exist if Unipile changes format */
+  total_count?: number;
+  page?: number;
+  has_more?: boolean;
+}
+
 export interface UnipileSearchResultItem {
   provider_id: string;
   public_identifier: string;

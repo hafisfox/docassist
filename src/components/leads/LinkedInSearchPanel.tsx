@@ -320,8 +320,8 @@ function LinkedInSearchPanel() {
                           />
                         ) : null}
                         <AvatarFallback>
-                          {item.first_name[0]}
-                          {item.last_name[0]}
+                          {item.first_name?.[0] ?? ""}
+                          {item.last_name?.[0] ?? ""}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
