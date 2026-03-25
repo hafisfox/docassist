@@ -141,8 +141,8 @@ export class UnipileClient {
     );
 
     return this.request<UnipileSearchResponse>("POST", "/linkedin/search", {
+      params: { account_id: accountId },
       body: {
-        account_id: accountId,
         api: params.api ?? "classic",
         category: params.category ?? "people",
         ...(params.keywords && { keywords: params.keywords }),
