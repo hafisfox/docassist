@@ -260,7 +260,7 @@ export function ConversationList({
         ) : (
           chats.map((chat) => {
             const isUnread =
-              chat.last_message !== null &&
+              chat.last_message != null &&
               !chat.last_message.is_sender &&
               !viewedChatIds.has(chat.id);
             return (

@@ -156,13 +156,13 @@ export function useInbox() {
         case "unread":
           // Last message came from them and we haven't opened the chat yet
           return (
-            chat.last_message !== null &&
+            chat.last_message != null &&
             !chat.last_message.is_sender &&
             !state.viewedChatIds.has(chat.id)
           );
         case "replied":
           // Lead replied to us (last message is from them)
-          return chat.last_message !== null && !chat.last_message.is_sender;
+          return chat.last_message != null && !chat.last_message.is_sender;
         case "interested":
           return state.interestedChatIds.has(chat.id);
         default:
@@ -173,7 +173,7 @@ export function useInbox() {
 
   const unreadCount = state.chats.filter(
     (chat) =>
-      chat.last_message !== null &&
+      chat.last_message != null &&
       !chat.last_message.is_sender &&
       !state.viewedChatIds.has(chat.id),
   ).length;
