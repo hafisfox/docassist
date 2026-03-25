@@ -122,7 +122,7 @@ export function MessageThread({ chat, isInterested, onToggleInterested }: Messag
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevChatIdRef = useRef<string | null>(null);
 
-  const other = chat.attendees[0];
+  const other = chat.attendees?.[0];
   const otherName = other?.display_name ?? "Unknown";
   const otherAvatarUrl = other?.profile_picture_url ?? null;
 
@@ -187,7 +187,7 @@ export function MessageThread({ chat, isInterested, onToggleInterested }: Messag
         </Avatar>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{otherName}</p>
-          {chat.attendees[0] && (
+          {chat.attendees?.[0] && (
             <p className="truncate text-xs text-muted-foreground">LinkedIn</p>
           )}
         </div>

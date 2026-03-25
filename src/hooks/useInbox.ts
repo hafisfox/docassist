@@ -146,9 +146,9 @@ export function useInbox() {
       // Search by attendee display name
       if (state.search) {
         const q = state.search.toLowerCase();
-        const matches = chat.attendees.some((a) =>
-          a.display_name.toLowerCase().includes(q),
-        );
+        const matches = chat.attendees?.some((a) =>
+          a.display_name?.toLowerCase().includes(q),
+        ) ?? false;
         if (!matches) return false;
       }
 

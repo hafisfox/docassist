@@ -140,16 +140,31 @@ export class UnipileClient {
       "searching linkedin people",
     );
 
+    // Unipile's `location`, `company`, and `industry` fields require numeric
+    // IDs retrieved from their "List search parameters" endpoint.  Since we
+    // only have free-text values, we map them into fields that accept text:
+    //   • title / company  → advanced_keywords.title / .company
+    //   • location         → appended to the keywords string
+    //   • industry         → appended to the keywords string
+    const keywordParts: string[] = [];
+    if (params.keywords) keywordParts.push(params.keywords);
+    if (params.location) keywordParts.push(params.location);
+    if (params.industry) keywordParts.push(params.industry);
+    const keywords = keywordParts.length > 0 ? keywordParts.join(" ") : undefined;
+
+    const advancedKeywords: Record<string, string> = {};
+    if (params.title) advancedKeywords.title = params.title;
+    if (params.company) advancedKeywords.company = params.company;
+
     return this.request<UnipileSearchResponse>("POST", "/linkedin/search", {
       params: { account_id: accountId },
       body: {
         api: params.api ?? "classic",
         category: params.category ?? "people",
-        ...(params.keywords && { keywords: params.keywords }),
-        ...(params.location && { location: params.location }),
-        ...(params.industry && { industry: params.industry }),
-        ...(params.title && { title: params.title }),
-        ...(params.company && { company: params.company }),
+        ...(keywords && { keywords }),
+        ...(Object.keys(advancedKeywords).length > 0 && {
+          advanced_keywords: advancedKeywords,
+        }),
         ...(params.page && { page: params.page }),
       },
       correlationId: cid,

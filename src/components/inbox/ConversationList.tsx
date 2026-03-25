@@ -66,7 +66,7 @@ function ConversationItem({
   onClick,
 }: ConversationItemProps) {
   // Use first non-self attendee as the "other" person (or just first attendee)
-  const other = chat.attendees[0];
+  const other = chat.attendees?.[0];
   const displayName = other?.display_name ?? "Unknown";
   const avatarUrl = other?.profile_picture_url ?? null;
   const lastMsg = chat.last_message;
