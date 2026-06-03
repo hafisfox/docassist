@@ -17,6 +17,9 @@ export function getApifyClient(): ApifyClient {
   return _instance;
 }
 
+/** Default ceiling so a hung Apify actor can't block a request indefinitely. */
+const DEFAULT_TIMEOUT_SECS = 120;
+
 export async function runActor<T>(
   actorId: string,
   input: Record<string, unknown>,
@@ -25,7 +28,7 @@ export async function runActor<T>(
   const client = getApifyClient();
 
   const run = await client.actor(actorId).call(input, {
-    ...(options.timeoutSecs && { timeout: options.timeoutSecs }),
+    timeout: options.timeoutSecs ?? DEFAULT_TIMEOUT_SECS,
   });
 
   if (!run || !run.defaultDatasetId) {

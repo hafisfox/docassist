@@ -101,13 +101,17 @@ function FollowUpPicker({ onSelect }: FollowUpPickerProps) {
 interface QuickReplyBarProps {
   chatId: string;
   isInterested: boolean;
-  onToggleInterested: () => void;
+  isNotInterested: boolean;
+  onMarkInterested: () => void;
+  onMarkNotInterested: () => void;
   onInsertTemplate: (body: string) => void;
 }
 
 export function QuickReplyBar({
   isInterested,
-  onToggleInterested,
+  isNotInterested,
+  onMarkInterested,
+  onMarkNotInterested,
   onInsertTemplate,
 }: QuickReplyBarProps) {
   const handleBookMeeting = () => {
@@ -125,7 +129,8 @@ export function QuickReplyBar({
         variant={isInterested ? "default" : "outline"}
         size="sm"
         className="h-7 gap-1.5 text-xs"
-        onClick={onToggleInterested}
+        onClick={onMarkInterested}
+        disabled={isInterested}
       >
         <ThumbsUpIcon className="size-3.5" />
         {isInterested ? "Interested" : "Mark Interested"}
@@ -133,14 +138,14 @@ export function QuickReplyBar({
 
       <Button
         type="button"
-        variant="outline"
+        variant={isNotInterested ? "default" : "outline"}
         size="sm"
         className="h-7 gap-1.5 text-xs"
-        onClick={onToggleInterested}
-        disabled={isInterested}
+        onClick={onMarkNotInterested}
+        disabled={isNotInterested}
       >
         <ThumbsDownIcon className="size-3.5" />
-        Mark Not Interested
+        {isNotInterested ? "Not Interested" : "Mark Not Interested"}
       </Button>
 
       <Button

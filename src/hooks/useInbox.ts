@@ -16,9 +16,12 @@ interface InboxState {
   selectedChatId: string | null;
   viewedChatIds: Set<string>;
   interestedChatIds: Set<string>;
+  notInterestedChatIds: Set<string>;
   search: string;
   filter: InboxFilter;
 }
+
+export type ChatInterest = "interested" | "not_interested";
 
 async function apiFetch<T>(url: string): Promise<T> {
   const res = await fetch(url, {
@@ -42,6 +45,7 @@ export function useInbox() {
     selectedChatId: null,
     viewedChatIds: new Set(),
     interestedChatIds: new Set(),
+    notInterestedChatIds: new Set(),
     search: "",
     filter: "all",
   });
@@ -98,17 +102,61 @@ export function useInbox() {
     }));
   }, []);
 
-  const toggleInterested = useCallback((chatId: string) => {
-    setState((prev) => {
-      const updated = new Set(prev.interestedChatIds);
-      if (updated.has(chatId)) {
-        updated.delete(chatId);
-      } else {
-        updated.add(chatId);
+  // Mark a conversation interested / not interested. Updates the local highlight
+  // optimistically (the two states are mutually exclusive) and persists the
+  // decision onto the underlying lead, reverting on failure.
+  const setChatInterest = useCallback(
+    async (chat: UnipileChat, status: ChatInterest) => {
+      const chatId = chat.id;
+      const providerId = chat.attendees?.[0]?.provider_id;
+
+      // Snapshot prior membership for rollback
+      const prevState = stateRef.current;
+      const wasInterested = prevState.interestedChatIds.has(chatId);
+      const wasNotInterested = prevState.notInterestedChatIds.has(chatId);
+
+      setState((prev) => {
+        const interested = new Set(prev.interestedChatIds);
+        const notInterested = new Set(prev.notInterestedChatIds);
+        if (status === "interested") {
+          interested.add(chatId);
+          notInterested.delete(chatId);
+        } else {
+          notInterested.add(chatId);
+          interested.delete(chatId);
+        }
+        return { ...prev, interestedChatIds: interested, notInterestedChatIds: notInterested };
+      });
+
+      try {
+        const res = await fetch("/api/inbox/lead-status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, provider_id: providerId, status }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(
+            (body as { error?: string }).error ?? `Failed to save (${res.status})`,
+          );
+        }
+        toast.success(status === "interested" ? "Marked interested" : "Marked not interested");
+      } catch (err) {
+        // Revert optimistic highlight
+        setState((prev) => {
+          const interested = new Set(prev.interestedChatIds);
+          const notInterested = new Set(prev.notInterestedChatIds);
+          interested.delete(chatId);
+          notInterested.delete(chatId);
+          if (wasInterested) interested.add(chatId);
+          if (wasNotInterested) notInterested.add(chatId);
+          return { ...prev, interestedChatIds: interested, notInterestedChatIds: notInterested };
+        });
+        toast.error(err instanceof Error ? err.message : "Failed to update conversation");
       }
-      return { ...prev, interestedChatIds: updated };
-    });
-  }, []);
+    },
+    [],
+  );
 
   const setSearch = useCallback((search: string) => {
     setState((prev) => ({ ...prev, search }));
@@ -186,7 +234,7 @@ export function useInbox() {
     syncInbox,
     loadMore,
     selectChat,
-    toggleInterested,
+    setChatInterest,
     setSearch,
     setFilter,
   };

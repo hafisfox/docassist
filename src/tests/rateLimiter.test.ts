@@ -25,6 +25,7 @@ type MockSettings = {
   user_id: string;
   invites_sent_today: number;
   messages_sent_today: number;
+  profile_views_today: number;
   max_daily_invites: number;
   max_daily_messages: number;
   max_daily_profile_views: number;
@@ -36,6 +37,7 @@ function buildSettings(overrides: Partial<MockSettings> = {}): MockSettings {
     user_id: "user-1",
     invites_sent_today: 0,
     messages_sent_today: 0,
+    profile_views_today: 0,
     max_daily_invites: 25,
     max_daily_messages: 50,
     max_daily_profile_views: 80,
@@ -107,12 +109,36 @@ describe("checkAndIncrementLimit", () => {
     expect(result.remaining).toBe(0);
   });
 
-  it("allows profile_view unconditionally (no DB counter)", async () => {
-    const supabase = buildMockSupabase(buildSettings());
+  it("allows and increments a profile_view when below limit", async () => {
+    const supabase = buildMockSupabase(buildSettings({ profile_views_today: 10 }));
     const result = await checkAndIncrementLimit(supabase, "user-1", "profile_view");
 
     expect(result.allowed).toBe(true);
-    expect(result.remaining).toBe(80);
+    expect(result.current).toBe(11);
+    expect(result.remaining).toBe(69); // 80 - 11
+  });
+
+  it("denies when profile_view count is at limit", async () => {
+    const supabase = buildMockSupabase(buildSettings({ profile_views_today: 80 }));
+    const result = await checkAndIncrementLimit(supabase, "user-1", "profile_view");
+
+    expect(result.allowed).toBe(false);
+    expect(result.remaining).toBe(0);
+  });
+
+  it("fails closed when the daily counter reset write fails", async () => {
+    const yesterday = new Date();
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+
+    const supabase = buildMockSupabase(
+      buildSettings({ counters_reset_at: yesterday.toISOString() }),
+      { updateError: { code: "08006" } }, // reset UPDATE fails
+    );
+    const result = await checkAndIncrementLimit(supabase, "user-1", "invite");
+
+    // Defer the action rather than trust stale in-memory counters
+    expect(result.allowed).toBe(false);
+    expect(result.remaining).toBe(0);
   });
 
   it("fails open when settings fetch returns an error", async () => {

@@ -8,7 +8,7 @@ export type LimitType = "invite" | "message" | "profile_view";
 export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
-  /** Counter value after this call (undefined if profile_view, which has no DB counter) */
+  /** Counter value after this call (undefined when the action was not allowed) */
   current?: number;
 }
 
@@ -18,10 +18,11 @@ const LIMIT_DEFAULTS: Record<LimitType, number> = {
   profile_view: MAX_DAILY_PROFILE_VIEWS,
 };
 
-// Maps LimitType to settings column names. profile_view has no DB counter yet.
-const COUNTER_COLUMN: Partial<Record<LimitType, keyof Settings>> = {
+// Maps LimitType to settings counter column names.
+const COUNTER_COLUMN: Record<LimitType, keyof Settings> = {
   invite: "invites_sent_today",
   message: "messages_sent_today",
+  profile_view: "profile_views_today",
 };
 
 const LIMIT_COLUMN: Record<LimitType, keyof Settings> = {
@@ -80,31 +81,28 @@ export async function checkAndIncrementLimit(
       .update({
         invites_sent_today: 0,
         messages_sent_today: 0,
+        profile_views_today: 0,
         counters_reset_at: now.toISOString(),
       })
       .eq("user_id", userId);
 
     if (resetError) {
-      log?.error({ error: resetError }, "Failed to reset daily counters");
-    } else {
-      log?.info("Daily counters reset for new UTC day");
-      typedSettings.invites_sent_today = 0;
-      typedSettings.messages_sent_today = 0;
-      typedSettings.counters_reset_at = now.toISOString();
+      // Fail closed: we can't trust the in-memory counters (still holding
+      // yesterday's values) until the reset persists. Defer the action — the
+      // caller retries on its next cycle once the DB write succeeds.
+      log?.error({ error: resetError }, "Failed to reset daily counters — deferring action");
+      return { allowed: false, remaining: 0 };
     }
+    log?.info("Daily counters reset for new UTC day");
+    typedSettings.invites_sent_today = 0;
+    typedSettings.messages_sent_today = 0;
+    typedSettings.profile_views_today = 0;
+    typedSettings.counters_reset_at = now.toISOString();
   }
 
   // ── 3. Determine limit and current count ─────────────────────────────────
   const limit = typedSettings[LIMIT_COLUMN[type]] as number;
   const counterCol = COUNTER_COLUMN[type];
-
-  // profile_view has no DB counter — just check against the limit with no increment
-  if (!counterCol) {
-    // We cannot track profile views in the DB yet; always allow up to the configured max.
-    // TODO: add profile_views_today column to settings table and track here.
-    return { allowed: true, remaining: limit };
-  }
-
   const current = typedSettings[counterCol] as number;
 
   if (current >= limit) {

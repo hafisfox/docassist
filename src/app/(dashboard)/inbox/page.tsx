@@ -39,13 +39,14 @@ function InboxContent() {
     selectedChatId,
     viewedChatIds,
     interestedChatIds,
+    notInterestedChatIds,
     search,
     filter,
     unreadCount,
     fetchChats,
     syncInbox,
     selectChat,
-    toggleInterested,
+    setChatInterest,
     setSearch,
     setFilter,
   } = useInbox();
@@ -94,7 +95,9 @@ function InboxContent() {
           <MessageThread
             chat={selectedChat}
             isInterested={interestedChatIds.has(selectedChat.id)}
-            onToggleInterested={() => toggleInterested(selectedChat.id)}
+            isNotInterested={notInterestedChatIds.has(selectedChat.id)}
+            onMarkInterested={() => setChatInterest(selectedChat, "interested")}
+            onMarkNotInterested={() => setChatInterest(selectedChat, "not_interested")}
           />
         ) : (
           <NoConversationSelected />

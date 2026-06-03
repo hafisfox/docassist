@@ -223,6 +223,7 @@ export interface Settings {
   max_delay_seconds: number;
   invites_sent_today: number;
   messages_sent_today: number;
+  profile_views_today: number;
   counters_reset_at: string;
   created_at: string;
   updated_at: string;
@@ -313,8 +314,8 @@ export interface Database {
         Relationships: [];
       };
     };
-    Views: {};
-    Functions: {};
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
     Enums: {
       lead_status: LeadStatus;
       campaign_status: CampaignStatus;

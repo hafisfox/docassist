@@ -25,8 +25,11 @@ export function useRealtimeMessages() {
   const pathnameRef = useRef(pathname);
   useEffect(() => {
     pathnameRef.current = pathname;
-    // Auto-reset badge when the user navigates to the inbox
+    // Auto-reset badge when the user navigates to the inbox. This intentionally
+    // clears the accumulated counter (a pure derivation can't, since increments
+    // keep arriving while on /inbox), so the one-shot setState here is correct.
     if (pathname.startsWith("/inbox")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-shot reset on navigation
       setUnreadCount(0);
     }
   }, [pathname]);

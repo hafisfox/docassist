@@ -111,10 +111,18 @@ function MessageSkeleton({ isOutbound }: { isOutbound: boolean }) {
 interface MessageThreadProps {
   chat: UnipileChat;
   isInterested: boolean;
-  onToggleInterested: () => void;
+  isNotInterested: boolean;
+  onMarkInterested: () => void;
+  onMarkNotInterested: () => void;
 }
 
-export function MessageThread({ chat, isInterested, onToggleInterested }: MessageThreadProps) {
+export function MessageThread({
+  chat,
+  isInterested,
+  isNotInterested,
+  onMarkInterested,
+  onMarkNotInterested,
+}: MessageThreadProps) {
   const [messages, setMessages] = useState<UnipileChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,6 +185,10 @@ export function MessageThread({ chat, isInterested, onToggleInterested }: Messag
     setMessages((prev) => [...prev, optimistic]);
   }, []);
 
+  const handleRemoveMessage = useCallback((messageId: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  }, []);
+
   return (
     <div className="flex h-full flex-col">
       {/* Thread header */}
@@ -234,7 +246,9 @@ export function MessageThread({ chat, isInterested, onToggleInterested }: Messag
         <QuickReplyBar
           chatId={chat.id}
           isInterested={isInterested}
-          onToggleInterested={onToggleInterested}
+          isNotInterested={isNotInterested}
+          onMarkInterested={onMarkInterested}
+          onMarkNotInterested={onMarkNotInterested}
           onInsertTemplate={(body) => {
             // Expose a ref-based API via a custom event so MessageComposer can pick it up
             window.dispatchEvent(
@@ -242,7 +256,7 @@ export function MessageThread({ chat, isInterested, onToggleInterested }: Messag
             );
           }}
         />
-        <MessageComposer chatId={chat.id} onSent={handleSent} />
+        <MessageComposer chatId={chat.id} onSent={handleSent} onRemoveMessage={handleRemoveMessage} />
       </div>
     </div>
   );

@@ -73,6 +73,9 @@ export function DailyUsageMeters() {
   }, []);
 
   useEffect(() => {
+    // fetchUsage sets state only after an awaited fetch, so this is not a
+    // synchronous render cascade.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch-on-mount
     fetchUsage();
     const interval = setInterval(fetchUsage, 60_000);
     return () => clearInterval(interval);

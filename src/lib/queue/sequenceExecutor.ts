@@ -754,27 +754,24 @@ async function insertActivity(
 }
 
 /**
- * Non-atomic stat increment (fetch + update).
- * Sufficient for a single-instance deployment; use a Supabase RPC for
- * atomic increments in a distributed setup.
+ * Atomic stat increment via the increment_campaign_stat RPC, so concurrent
+ * bumps (e.g. webhook + executor) don't clobber each other.
  */
 async function incrementCampaignStat(
   supabase: SupabaseClient<Database>,
   campaignId: string,
   field: "invites_sent" | "messages_sent" | "invites_accepted" | "replies_received"
 ): Promise<void> {
-  const { data } = await supabase
-    .from("campaigns")
-    .select(field)
-    .eq("id", campaignId)
-    .maybeSingle();
-
-  if (!data) return;
-
-  const current = (data as Record<string, number>)[field] ?? 0;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any)
-    .from("campaigns")
-    .update({ [field]: current + 1 })
-    .eq("id", campaignId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database types
+  const { error } = await (supabase as any).rpc("increment_campaign_stat", {
+    p_campaign_id: campaignId,
+    p_field: field,
+    p_delta: 1,
+  });
+  if (error) {
+    withCorrelationId(createCorrelationId()).error(
+      { error, campaignId, field },
+      "failed to increment campaign stat"
+    );
+  }
 }

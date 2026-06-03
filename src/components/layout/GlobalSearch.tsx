@@ -58,8 +58,10 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
     router.push(`/leads?search=${encodeURIComponent(search.trim())}`);
   }, [search, onOpenChange, router]);
 
-  // Reset search when closed
+  // Reset search when the dialog closes — a one-shot sync tied to the `open`
+  // prop, not a render-derived value.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset on close
     if (!open) setSearch("");
   }, [open]);
 

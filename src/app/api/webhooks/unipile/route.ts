@@ -8,8 +8,10 @@
  * Uses the service-role Supabase client (bypasses RLS) because webhooks arrive
  * without a user session.
  *
- * Signature verification: HMAC-SHA256 over the raw request body using WEBHOOK_SECRET.
- * Unipile sends the digest in the `X-Unipile-Signature` header as `sha256=<hex>`.
+ * Auth: Unipile does not sign payloads with HMAC. Instead you configure a custom
+ * header (`Unipile-Auth: <secret>`) when registering the webhook, and Unipile
+ * echoes it verbatim on every POST. We constant-time compare that header against
+ * WEBHOOK_SECRET (see verifySignature) to reject forged requests.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -353,22 +355,14 @@ async function handleNewMessage(
     },
   });
 
-  // ── Increment campaign replies_received counter ───────────────────────────
+  // ── Increment campaign replies_received counter (atomic) ──────────────────
   if (lead.campaign_id) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: campaignRow } = await (supabase as any)
-      .from("campaigns")
-      .select("replies_received")
-      .eq("id", lead.campaign_id)
-      .maybeSingle();
-
-    if (campaignRow) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("campaigns")
-        .update({ replies_received: (campaignRow as { replies_received: number }).replies_received + 1 })
-        .eq("id", lead.campaign_id);
-    }
+    await (supabase as any).rpc("increment_campaign_stat", {
+      p_campaign_id: lead.campaign_id,
+      p_field: "replies_received",
+      p_delta: 1,
+    });
   }
 
   log.info({ leadId: lead.id, newStatus, isOptOut }, "message.received processed");
@@ -511,25 +505,14 @@ async function handleNewRelation(
     },
   });
 
-  // ── Increment campaign invites_accepted counter ───────────────────────────
+  // ── Increment campaign invites_accepted counter (atomic) ──────────────────
   if (lead.campaign_id) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: campaignRow } = await (supabase as any)
-      .from("campaigns")
-      .select("invites_accepted")
-      .eq("id", lead.campaign_id)
-      .maybeSingle();
-
-    if (campaignRow) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("campaigns")
-        .update({
-          invites_accepted:
-            (campaignRow as { invites_accepted: number }).invites_accepted + 1,
-        })
-        .eq("id", lead.campaign_id);
-    }
+    await (supabase as any).rpc("increment_campaign_stat", {
+      p_campaign_id: lead.campaign_id,
+      p_field: "invites_accepted",
+      p_delta: 1,
+    });
   }
 
   log.info({ leadId: lead.id, providerId: provider_id }, "relation.new processed");

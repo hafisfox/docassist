@@ -103,9 +103,11 @@ function TemplatePicker({ onSelect }: TemplatePickerProps) {
 interface MessageComposerProps {
   chatId: string;
   onSent: (message: UnipileChatMessage) => void;
+  /** Remove a previously-added optimistic message by id (called on send failure). */
+  onRemoveMessage: (messageId: string) => void;
 }
 
-export function MessageComposer({ chatId, onSent }: MessageComposerProps) {
+export function MessageComposer({ chatId, onSent, onRemoveMessage }: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -131,8 +133,9 @@ export function MessageComposer({ chatId, onSent }: MessageComposerProps) {
     setError(null);
 
     // Optimistic message (will be replaced on re-fetch)
+    const optimisticId = `optimistic-${Date.now()}`;
     const optimistic: UnipileChatMessage = {
-      id: `optimistic-${Date.now()}`,
+      id: optimisticId,
       chat_id: chatId,
       sender_provider_id: "me",
       text: trimmed,
@@ -154,12 +157,13 @@ export function MessageComposer({ chatId, onSent }: MessageComposerProps) {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Send failed");
-      // Revert optimistic message on error
+      // Roll back: remove the phantom optimistic bubble and restore the draft
+      onRemoveMessage(optimisticId);
       setText(trimmed);
     } finally {
       setSending(false);
     }
-  }, [chatId, text, sending, onSent]);
+  }, [chatId, text, sending, onSent, onRemoveMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
