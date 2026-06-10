@@ -12,7 +12,7 @@
  *     (unless the lead is already at a higher-intent status)
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { AppError } from "@/lib/errors";
@@ -29,7 +29,7 @@ const PRESERVE_STATUSES: LeadStatus[] = [
   "do_not_contact",
 ];
 
-export async function POST(_request: NextRequest) {
+export async function POST() {
   const correlationId = createCorrelationId();
   const log = withCorrelationId(correlationId);
 

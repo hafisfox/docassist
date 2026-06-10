@@ -1,8 +1,4 @@
-import {
-  createCorrelationId,
-  withCorrelationId,
-  type Logger,
-} from "@/lib/logger";
+import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { UnipileError } from "@/lib/errors";
 import { getCircuitBreaker } from "@/lib/queue/circuitBreaker";
 import { withRetry } from "@/lib/utils/retry";

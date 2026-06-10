@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -26,7 +27,7 @@ export function MobileNav({ open, onOpenChange, inboxUnreadCount = 0 }: MobileNa
       <SheetContent side="left" className="w-64 p-0">
         <SheetHeader className="px-4 py-3">
           <div className="flex items-center gap-2">
-            <img
+            <Image
               src="/logo.webp"
               alt="DoctorAssist.AI logo"
               width={32}

@@ -58,7 +58,7 @@ function InboxContent() {
   // Re-fetch conversation list whenever a new inbound message arrives.
   // The global useRealtimeMessages in the layout fires this event.
   useEffect(() => {
-    function handleNewMessage(_e: Event) {
+    function handleNewMessage() {
       fetchChats();
     }
     window.addEventListener("inbox:new-message", handleNewMessage);

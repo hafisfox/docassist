@@ -200,7 +200,7 @@ export function useCampaigns() {
 
     return () => {
       if (channel) {
-        supabaseRef.current.removeChannel(channel);
+        supabase.removeChannel(channel);
       }
     };
   }, []);

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCircuitBreaker } from "@/hooks/useCircuitBreaker";
 import { toast } from "sonner";

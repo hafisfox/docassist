@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -55,7 +56,7 @@ export function Sidebar({ collapsed, onToggle, inboxUnreadCount = 0 }: SidebarPr
           collapsed && "justify-center px-0"
         )}
       >
-        <img
+        <Image
           src="/logo.webp"
           alt="DoctorAssist.AI logo"
           width={32}

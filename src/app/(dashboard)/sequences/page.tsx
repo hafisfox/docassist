@@ -8,7 +8,6 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
 import { ErrorState } from "@/components/shared/ErrorState"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -26,20 +25,11 @@ import { toast } from "sonner"
 import {
   GitBranchIcon,
   PlusIcon,
-  PencilIcon,
   TrashIcon,
   LayersIcon,
   UsersIcon,
   StarIcon,
 } from "lucide-react"
-
-const STEP_TYPE_LABELS: Record<string, string> = {
-  connection_request: "Connection Request",
-  wait_for_acceptance: "Wait for Acceptance",
-  message: "Message",
-  delay: "Delay",
-  condition: "Condition",
-}
 
 function SequenceCard({
   sequence,

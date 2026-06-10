@@ -150,20 +150,32 @@ export async function runSequenceExecutor(
 }
 
 /**
+ * How far into the future fetched enrollments are "claimed" by bumping
+ * next_execution_at. Every successful step execution overwrites this value,
+ * so the claim only matters when a run overlaps with the next cron tick or
+ * crashes mid-batch (the enrollment then retries after the claim expires).
+ */
+const CLAIM_WINDOW_MS = 15 * 60_000;
+
+/**
  * Fetch active enrollments whose execution time has arrived, ordered by
  * next_execution_at ascending so oldest-due are processed first.
+ *
+ * The fetched rows are immediately claimed (next_execution_at pushed
+ * CLAIM_WINDOW_MS into the future) so an overlapping executor run doesn't
+ * pick up the same enrollments and double-send LinkedIn actions.
  */
 export async function fetchDueEnrollments(
   supabase: SupabaseClient<Database>
 ): Promise<SequenceEnrollment[]> {
-  const now = new Date().toISOString();
+  const now = Date.now();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("sequence_enrollments")
     .select("*")
     .eq("status", "active")
-    .lte("next_execution_at", now)
+    .lte("next_execution_at", new Date(now).toISOString())
     .order("next_execution_at", { ascending: true })
     .limit(BATCH_SIZE);
 
@@ -171,7 +183,29 @@ export async function fetchDueEnrollments(
     throw new Error(`fetchDueEnrollments: ${error.message}`);
   }
 
-  return (data ?? []) as SequenceEnrollment[];
+  const enrollments = (data ?? []) as SequenceEnrollment[];
+  if (enrollments.length === 0) return enrollments;
+
+  const claimUntil = new Date(now + CLAIM_WINDOW_MS).toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: claimError } = await (supabase as any)
+    .from("sequence_enrollments")
+    .update({ next_execution_at: claimUntil })
+    .in(
+      "id",
+      enrollments.map((e) => e.id)
+    )
+    .eq("status", "active");
+
+  if (claimError) {
+    // Not fatal — we just lose the overlap protection for this run
+    withCorrelationId(createCorrelationId()).error(
+      { error: claimError },
+      "failed to claim due enrollments"
+    );
+  }
+
+  return enrollments;
 }
 
 // ── Step execution ────────────────────────────────────────────────────────────

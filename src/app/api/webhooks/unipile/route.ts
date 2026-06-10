@@ -218,6 +218,25 @@ async function handleNewMessage(
 
   log.info({ chatId: chat_id, senderId: sender.provider_id }, "processing message.received");
 
+  // ── Idempotency: skip if this message was already stored ──────────────────
+  // Unipile retries webhooks and /api/linkedin/sync-inbox can pull the same
+  // message; without this check we'd duplicate the row, re-pause enrollments
+  // and double-increment replies_received.
+  if (messageId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existing } = await (supabase as any)
+      .from("messages")
+      .select("id")
+      .eq("unipile_message_id", messageId)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      log.info({ messageId }, "message already stored — skipping duplicate webhook");
+      return;
+    }
+  }
+
   // ── Find lead: chat_id first, then provider_id fallback ───────────────────
   let lead: Lead | null = null;
 

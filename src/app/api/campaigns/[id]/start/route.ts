@@ -205,12 +205,13 @@ export async function POST(
     }
 
     // ── Update campaign status → active ───────────────────────────────────
+    // Keep the original started_at when resuming from paused
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: updatedData, error: updateError } = await (supabase as any)
       .from("campaigns")
       .update({
         status: "active",
-        started_at: now,
+        started_at: campaign.started_at ?? now,
         paused_at: null,
       })
       .eq("id", id)

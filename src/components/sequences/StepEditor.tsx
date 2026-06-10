@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -15,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useTemplates, type TemplateCategory } from "@/hooks/useTemplates"
-import type { Template } from "@/types/database"
 import type { LocalStep } from "@/app/(dashboard)/sequences/[id]/page"
 import {
   TrashIcon,
@@ -25,7 +24,6 @@ import {
   TimerIcon,
   GitBranchIcon,
   FileTextIcon,
-  PencilIcon,
 } from "lucide-react"
 
 const STEP_TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode; description: string }> = {

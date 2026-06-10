@@ -151,7 +151,7 @@ function LeadTimeline({ activities, messages, loading }: LeadTimelineProps) {
             {/* Vertical line */}
             <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
 
-            {entries.map((entry, index) => {
+            {entries.map((entry) => {
               if (entry.kind === "activity") {
                 const activity = entry.data;
                 const Icon = activityIcons[activity.activity_type] ?? CircleAlertIcon;

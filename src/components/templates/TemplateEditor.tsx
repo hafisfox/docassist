@@ -27,12 +27,6 @@ import {
 import type { Template } from "@/types/database"
 import type { TemplateCategory } from "@/hooks/useTemplates"
 
-const CATEGORY_LABELS: Record<TemplateCategory, string> = {
-  connection_request: "Connection Request",
-  message: "Message",
-  follow_up: "Follow-up",
-}
-
 interface TemplateEditorProps {
   open: boolean
   onOpenChange: (open: boolean) => void

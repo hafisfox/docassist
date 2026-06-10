@@ -5,7 +5,7 @@ import { AppError, RateLimitError, UnipileError } from "@/lib/errors";
 import { checkAndIncrementLimit } from "@/lib/queue/rateLimiter";
 import { getUnipileClient } from "@/lib/unipile/client";
 import { sendMessageSchema } from "@/lib/validators";
-import type { Lead, Campaign } from "@/types/database";
+import type { Lead } from "@/types/database";
 
 export async function POST(request: NextRequest) {
   const correlationId = createCorrelationId();
@@ -199,22 +199,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // ── Increment campaign messages_sent counter ──────────────────────────────
+    // ── Increment campaign messages_sent counter (atomic) ─────────────────────
     if (lead.campaign_id) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: campaignRow } = await (supabase as any)
-        .from("campaigns")
-        .select("messages_sent")
-        .eq("id", lead.campaign_id)
-        .single();
-      const campaign = campaignRow as Pick<Campaign, "messages_sent"> | null;
-
-      if (campaign != null) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
-          .from("campaigns")
-          .update({ messages_sent: campaign.messages_sent + 1 })
-          .eq("id", lead.campaign_id);
+      const { error: statError } = await (supabase as any).rpc("increment_campaign_stat", {
+        p_campaign_id: lead.campaign_id,
+        p_field: "messages_sent",
+        p_delta: 1,
+      });
+      if (statError) {
+        logCtx.error({ error: statError }, "failed to increment campaign messages_sent");
       }
     }
 

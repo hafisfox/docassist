@@ -6,7 +6,6 @@ import {
   SearchIcon,
   UserPlusIcon,
   MapPinIcon,
-  BriefcaseIcon,
   BuildingIcon,
   CheckIcon,
   LoaderCircleIcon,

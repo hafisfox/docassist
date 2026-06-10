@@ -10,7 +10,7 @@
  */
 
 import { logger } from "@/lib/logger";
-import { CircuitOpenError } from "@/lib/errors";
+import { AppError, CircuitOpenError } from "@/lib/errors";
 
 export type CircuitState = "CLOSED" | "OPEN" | "HALF_OPEN";
 
@@ -19,6 +19,13 @@ export interface CircuitBreakerConfig {
   failureThreshold: number;
   /** How long (ms) to keep the circuit open before allowing a test call. Default: 30 min */
   resetTimeout: number;
+  /**
+   * Decides whether an error counts toward opening the circuit.
+   * When it returns false the error is treated as a successful round-trip for
+   * circuit purposes (the API answered — it's not an outage) and is rethrown
+   * unchanged. Default: every error counts.
+   */
+  shouldTrip?: (error: unknown) => boolean;
 }
 
 export interface CircuitBreakerStatus {
@@ -102,7 +109,13 @@ export class CircuitBreaker {
       this.onSuccess();
       return result;
     } catch (error) {
-      await this.onFailure(error);
+      if (this.config.shouldTrip && !this.config.shouldTrip(error)) {
+        // Client-level error (e.g. 404/422) — the API responded, so this is
+        // not an availability failure. Reset the consecutive-failure count.
+        this.onSuccess();
+      } else {
+        await this.onFailure(error);
+      }
       throw error;
     }
   }
@@ -174,11 +187,25 @@ export class CircuitBreaker {
 
 // ── Singleton ────────────────────────────────────────────────────────────────
 
+/**
+ * Only availability failures should open the circuit: network errors,
+ * 5xx responses, and 429 provider throttling. Plain 4xx client errors
+ * (404 profile not found, 422 validation) mean the API is reachable —
+ * counting them would pause every campaign over a few bad lookups.
+ */
+function isAvailabilityFailure(error: unknown): boolean {
+  if (error instanceof AppError) {
+    return error.statusCode === 429 || error.statusCode >= 500;
+  }
+  // Unknown error shapes (e.g. raw fetch TypeError) count as failures
+  return true;
+}
+
 let _instance: CircuitBreaker | null = null;
 
 export function getCircuitBreaker(): CircuitBreaker {
   if (!_instance) {
-    _instance = new CircuitBreaker();
+    _instance = new CircuitBreaker({ shouldTrip: isAvailabilityFailure });
   }
   return _instance;
 }

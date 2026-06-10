@@ -11,21 +11,30 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import { CircuitBreaker } from "@/lib/queue/circuitBreaker";
-import { CircuitOpenError } from "@/lib/errors";
 
-// Re-export CircuitOpenError from errors so the test can reference it
+// Minimal stand-ins for the real error hierarchy
 vi.mock("@/lib/errors", () => {
-  class CircuitOpenError extends Error {
-    statusCode = 503;
+  class AppError extends Error {
+    statusCode: number;
     correlationId: string | undefined;
     context: Record<string, unknown>;
-    constructor(message: string, options: { context?: Record<string, unknown> } = {}) {
+    constructor(
+      message: string,
+      options: { statusCode?: number; context?: Record<string, unknown> } = {}
+    ) {
       super(message);
-      this.name = "CircuitOpenError";
+      this.name = "AppError";
+      this.statusCode = options.statusCode ?? 500;
       this.context = options.context ?? {};
     }
   }
-  return { CircuitOpenError };
+  class CircuitOpenError extends AppError {
+    constructor(message: string, options: { context?: Record<string, unknown> } = {}) {
+      super(message, { ...options, statusCode: 503 });
+      this.name = "CircuitOpenError";
+    }
+  }
+  return { AppError, CircuitOpenError };
 });
 
 describe("CircuitBreaker", () => {
@@ -146,5 +155,60 @@ describe("CircuitBreaker", () => {
     // nextRetryAt should be ~50ms in the future
     const nextRetry = new Date(status.nextRetryAt!).getTime();
     expect(nextRetry).toBeGreaterThan(Date.now());
+  });
+
+  describe("shouldTrip predicate", () => {
+    it("does not count non-tripping errors toward opening the circuit", async () => {
+      const selective = new CircuitBreaker({
+        failureThreshold: 3,
+        resetTimeout: 50,
+        shouldTrip: (err) => (err as Error).message !== "client-error",
+      });
+
+      for (let i = 0; i < 5; i++) {
+        await expect(
+          selective.execute(() => Promise.reject(new Error("client-error")))
+        ).rejects.toThrow("client-error");
+      }
+
+      expect(selective.getStatus().state).toBe("CLOSED");
+      expect(selective.getStatus().failures).toBe(0);
+    });
+
+    it("non-tripping error resets the consecutive failure count", async () => {
+      const selective = new CircuitBreaker({
+        failureThreshold: 3,
+        resetTimeout: 50,
+        shouldTrip: (err) => (err as Error).message !== "client-error",
+      });
+
+      await selective.execute(() => Promise.reject(new Error("outage"))).catch(() => {});
+      await selective.execute(() => Promise.reject(new Error("outage"))).catch(() => {});
+      expect(selective.getStatus().failures).toBe(2);
+
+      // API answered with a client error — proves it's reachable
+      await selective.execute(() => Promise.reject(new Error("client-error"))).catch(() => {});
+      expect(selective.getStatus().failures).toBe(0);
+      expect(selective.getStatus().state).toBe("CLOSED");
+    });
+
+    it("non-tripping error during HALF_OPEN closes the circuit", async () => {
+      const selective = new CircuitBreaker({
+        failureThreshold: 3,
+        resetTimeout: 50,
+        shouldTrip: (err) => (err as Error).message !== "client-error",
+      });
+
+      for (let i = 0; i < 3; i++) {
+        await selective.execute(() => Promise.reject(new Error("outage"))).catch(() => {});
+      }
+      expect(selective.getStatus().state).toBe("OPEN");
+
+      await new Promise((r) => setTimeout(r, 60));
+
+      // Test call gets a client error — the API is back, circuit should close
+      await selective.execute(() => Promise.reject(new Error("client-error"))).catch(() => {});
+      expect(selective.getStatus().state).toBe("CLOSED");
+    });
   });
 });

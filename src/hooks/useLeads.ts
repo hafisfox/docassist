@@ -277,7 +277,7 @@ export function useLeads() {
 
     return () => {
       if (channel) {
-        supabaseRef.current.removeChannel(channel);
+        supabase.removeChannel(channel);
       }
     };
   }, []);

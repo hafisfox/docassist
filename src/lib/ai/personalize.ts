@@ -2,7 +2,16 @@ import OpenAI from "openai"
 import { PERSONALIZATION_SYSTEM_PROMPT } from "./prompts"
 import type { Lead, IcpSegment } from "@/types/database"
 
-const client = new OpenAI()
+// Lazy singleton — instantiating OpenAI at module scope throws when
+// OPENAI_API_KEY is unset, which would crash every route importing this file.
+let _client: OpenAI | null = null
+
+function getClient(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI()
+  }
+  return _client
+}
 
 const CHAR_LIMITS: Record<"connection_request" | "message" | "follow_up", number> = {
   connection_request: 300,
@@ -94,7 +103,7 @@ Rules:
 - Output the improved template text only`
   }
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: "gpt-4o-mini",
     max_tokens: 300,
     messages: [

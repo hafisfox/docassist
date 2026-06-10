@@ -90,7 +90,7 @@ export function useRealtimeMessages() {
 
     return () => {
       if (channel) {
-        supabaseRef.current.removeChannel(channel);
+        supabase.removeChannel(channel);
       }
     };
   }, []);

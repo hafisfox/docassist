@@ -1,5 +1,5 @@
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
-import { RateLimitError, UnipileError } from "@/lib/errors";
+import { RateLimitError } from "@/lib/errors";
 import { getUnipileClient } from "./client";
 import type {
   UnipileCreateChatResponse,

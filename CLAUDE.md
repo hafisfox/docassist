@@ -119,6 +119,7 @@ OPENAI_API_KEY=
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 WEBHOOK_SECRET=
+CRON_SECRET=
 ```
 
 ## Testing Strategy

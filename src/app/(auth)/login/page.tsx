@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useActionState, useEffect, useState } from "react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -49,7 +50,7 @@ function LoginForm() {
     <Card>
       <CardHeader className="text-center">
         <div className="mx-auto mb-2 flex items-center gap-2">
-          <img
+          <Image
             src="/logo.webp"
             alt="DoctorAssist.AI logo"
             width={32}
