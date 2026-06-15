@@ -18,6 +18,7 @@ import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "crypto";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { runSequenceExecutor } from "@/lib/queue/sequenceExecutor";
+import { n8nOwnsExecution } from "@/lib/automation";
 import type { Database } from "@/types/database";
 
 // Executor batches can take minutes (30–120 s human-pacing delays between
@@ -52,6 +53,17 @@ export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
     log.warn({ correlationId }, "unauthorized cron request rejected");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // ── Cutover guard ─────────────────────────────────────────────────────────
+  // When n8n owns execution the local sequence executor must not run, or both
+  // engines would send to the same leads. Return a logged no-op.
+  if (n8nOwnsExecution()) {
+    log.info({ correlationId }, "sequence executor skipped — AUTOMATION_ENGINE=n8n");
+    return NextResponse.json(
+      { skipped: true, engine: "n8n", correlationId },
+      { status: 200 },
+    );
   }
 
   try {

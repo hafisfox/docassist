@@ -47,6 +47,77 @@ Use n8n's manual **Execute Workflow** / **Listen for test event** with a couple 
 
 ---
 
+## Dashboard integration (sync + control)
+
+The DoctorAssist dashboard now has an **Automations** page that controls these four
+v2 workflows directly via the n8n REST API, and a Supabase mirror so the
+leads/inbox/campaigns UI reflects what n8n is doing. This requires:
+
+### Dashboard config (already coded — just set the env)
+```
+N8N_BASE_URL=https://n8n.srv1183265.hstgr.cloud
+N8N_API_KEY=<n8n → Settings → API key>     # X-N8N-API-KEY (NOT the .mcp.json JWT)
+N8N_WEBHOOK_SECRET=<shared secret>          # echoed by the HTTP nodes below
+AUTOMATION_ENGINE=n8n                        # disables the dashboard's own executor + Unipile webhook
+DASHBOARD_OWNER_USER_ID=<supabase user id>   # owner that synced leads attach to
+```
+- **Control plane** (works today): activate/deactivate, view executions, and edit
+  the param constants that already exist — `ACTIVE_WAVE` (WF1 `segmentConfig`) and
+  `OVERVIEW_LINK` / `DOCTOR_TRYLINK` / `CALENDLY_20MIN` (WF3 `pickDue`).
+- **Cutover guard**: with `AUTOMATION_ENGINE=n8n` the dashboard's
+  `/api/cron/run-sequences` and `/api/webhooks/unipile` stand down (return
+  `skipped`) so the two engines can't double-send.
+
+### n8n-side edits — APPLIED (live, workflows still inactive)
+
+Done via the n8n API on 2026-06-15. Each emitter is an **HTTP Request** node
+(POST `{{$env.APP_URL}}/api/webhooks/n8n`, header `x-n8n-auth:
+{{$env.N8N_WEBHOOK_SECRET}}`, **On Error = Continue (regular output)**) wired as a
+*leaf branch* off the state-change node — the existing flow is untouched.
+
+| Workflow | Off node | event_type | `data` fields sent |
+|---|---|---|---|
+| WF1 | `add to sheets` | `lead.scraped` | provider_id, full_name, public_identifier, profile_url, headline, location, country, hospital_name, segment, region, tier |
+| WF2 | `log invite` | `invite.sent` | provider_id, full_name, segment |
+| WF2 | `markExpired` | `invite.expired` | provider_id |
+| WF3 | `initConn` | `connection.new` | provider_id, full_name, segment, region, hospital_name |
+| WF3 | `updateConn` | `sequence.touch_sent` | provider_id, chat_id, sequence_step, next_touch_at, text |
+| WF4 | `update_in` | `message.received` | provider_id, chat_id, message_id, text(message_text), timestamp |
+| WF4 | `update_out` | `message.sent` | provider_id, chat_id, message_id, text(message_text), timestamp |
+| WF4 | `warmthIF` (WARM/HOT branch) | `lead.warmth_changed` | provider_id, chat_id, warmth |
+
+The ingest endpoint upserts leads by `provider_id` (or resolves by `chat_id`),
+mirrors messages/activities, and bumps campaign counters; it is idempotent on
+`message_id`.
+
+**Run-now triggers — APPLIED.** Added a `run now (dashboard)` **Webhook** node to
+WF1/WF2/WF3 wired into the first processing node, paths `/webhook/run-wf1-v2`,
+`/webhook/run-wf2-v2`, `/webhook/run-wf3-v2`. The dashboard "Run now" button calls
+these (registry `runWebhookPath`). WF4 is purely `message.received`-triggered, so
+it has no run-now.
+
+> ⚠️ **n8n environment variables required** for the emitters to reach the
+> dashboard. Set these on the n8n host (Settings → Environment, or the process
+> env): `APP_URL` = the deployed dashboard origin (e.g. `https://<app>.vercel.app`,
+> no trailing slash); `N8N_WEBHOOK_SECRET` = the **same** value as the dashboard's
+> `N8N_WEBHOOK_SECRET`. Until both are set, the emit nodes will fail soft (On
+> Error = Continue) and no sync happens — the core outreach flow is unaffected.
+
+### NOT applied (optional, needs sign-off)
+
+**WF2 guard thresholds as editable params.** Making the daily ceiling / kill-switch
+/ pending guard dashboard-editable requires rewriting the `guards` Code node to use
+named consts (`DAILY_CEILING`, `ACCEPTANCE_MIN_PCT`, `PENDING_MAX`) in place of the
+inline literals — i.e. editing live send-decision logic. Left untouched. To enable:
+make that refactor in n8n, then restore the WF2 `editableParams` in
+`src/lib/n8n/workflows.ts`.
+
+> The checked-in `n8n/v2/*.json` files are the **original import artifacts** and do
+> not yet include the emitter/run-now nodes above. Re-export from n8n (UI Download
+> or `GET /api/v1/workflows/{id}`) if you need the JSON to match live.
+
+---
+
 ## What changed, per workflow
 
 ### WF1 — Scraper → Segmented Prospector

@@ -495,6 +495,23 @@ export const exportLeadsQuerySchema = z.object({
 
 export type ExportLeadsQuery = z.infer<typeof exportLeadsQuerySchema>;
 
+// ─── n8n Automation Params ───────────────────────────────────────────
+
+/**
+ * PATCH /api/automations/:id/params accepts a partial map of allow-listed
+ * param keys → value. The route further validates each value against the
+ * workflow's EditableParam descriptor (type + bounds) before writing to n8n.
+ */
+export const updateAutomationParamsSchema = z.object({
+  params: z
+    .record(z.string(), z.union([z.number(), z.string()]))
+    .refine((p) => Object.keys(p).length > 0, {
+      message: "At least one parameter is required",
+    }),
+});
+
+export type UpdateAutomationParamsInput = z.infer<typeof updateAutomationParamsSchema>;
+
 // ─── Shared enum schemas (for reuse in other validators) ─────────────
 
 export const leadStatusSchema = z.enum(leadStatusValues);

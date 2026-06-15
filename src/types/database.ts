@@ -88,6 +88,13 @@ export interface Lead {
   education: Record<string, unknown>[];
   experience: Record<string, unknown>[];
   source: string;
+  // n8n v2 sync columns (migration 20240101000013)
+  hospital_name: string | null;
+  segment: string | null;
+  region: string | null;
+  tier: string | null;
+  sequence_step: number | null;
+  next_touch_at: string | null;
   tags: string[];
   notes: string | null;
   created_at: string;

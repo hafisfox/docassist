@@ -5,37 +5,35 @@
  *  - message.received  → store inbound message, update lead status, pause/fail enrollment
  *  - relation.new      → mark invite accepted, advance wait_for_acceptance enrollment step
  *
- * Uses the service-role Supabase client (bypasses RLS) because webhooks arrive
- * without a user session.
+ * The actual lead-sync logic lives in src/lib/webhooks/leadSync.ts and is shared
+ * with the n8n ingest webhook so both stay consistent.
  *
- * Auth: Unipile does not sign payloads with HMAC. Instead you configure a custom
- * header (`Unipile-Auth: <secret>`) when registering the webhook, and Unipile
- * echoes it verbatim on every POST. We constant-time compare that header against
- * WEBHOOK_SECRET (see verifySignature) to reject forged requests.
+ * Cutover guard: when AUTOMATION_ENGINE=n8n the dashboard does not own
+ * execution — n8n receives the (repointed) Unipile webhooks directly and mirrors
+ * state via /api/webhooks/n8n. In that mode this route stands down (returns
+ * skipped) so the two engines can never double-process the same event.
+ *
+ * Auth: Unipile echoes a configured `Unipile-Auth: <secret>` header verbatim on
+ * every POST; we constant-time compare it against WEBHOOK_SECRET.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "crypto";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
-import type { Database, Lead, LeadStatus, ActivityType } from "@/types/database";
+import { n8nOwnsExecution } from "@/lib/automation";
+import {
+  findLeadByChatId,
+  findLeadByProviderId,
+  recordInboundMessage,
+  markInviteAccepted,
+} from "@/lib/webhooks/leadSync";
+import type { Database } from "@/types/database";
 
-// ── Opt-out detection ─────────────────────────────────────────────────────────
-
-const OPT_OUT_KEYWORDS = [
-  "not interested",
-  "unsubscribe",
-  "stop",
-  "remove me",
-  "don't contact",
-  "do not contact",
-  "no thanks",
-  "no thank you",
-  "please stop",
-  "opt out",
-  "opt-out",
-  "leave me alone",
-];
+// The typed client resolves Insert/rpc types to `never` here, so we operate
+// through an `any`-typed handle (consistent with the rest of this codebase).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DB = any;
 
 // ── Unipile payload types ─────────────────────────────────────────────────────
 
@@ -47,22 +45,14 @@ interface UnipileMessageReceivedPayload {
     chat_id: string;
     text: string;
     timestamp?: string;
-    sender: {
-      provider_id: string;
-      name?: string;
-      public_identifier?: string;
-    };
+    sender: { provider_id: string; name?: string; public_identifier?: string };
   };
 }
 
 interface UnipileRelationNewPayload {
   event_type: "relation.new";
   account_id?: string;
-  data: {
-    provider_id: string;
-    name?: string;
-    public_identifier?: string;
-  };
+  data: { provider_id: string; name?: string; public_identifier?: string };
 }
 
 type UnipileWebhookPayload =
@@ -76,10 +66,14 @@ export async function POST(request: NextRequest) {
   const correlationId = createCorrelationId();
   const log = withCorrelationId(correlationId);
 
-  // ── 1. Read raw body (required for HMAC) ──────────────────────────────────
+  // ── Cutover guard ─────────────────────────────────────────────────────────
+  if (n8nOwnsExecution()) {
+    log.info({ correlationId }, "unipile webhook skipped — AUTOMATION_ENGINE=n8n");
+    return NextResponse.json({ received: true, skipped: true, engine: "n8n" }, { status: 200 });
+  }
+
   const rawBody = await request.text();
 
-  // ── 2. Verify HMAC-SHA256 signature ──────────────────────────────────────
   const webhookSecret = process.env.WEBHOOK_SECRET;
   if (!webhookSecret) {
     log.error("WEBHOOK_SECRET env var is not configured");
@@ -87,18 +81,15 @@ export async function POST(request: NextRequest) {
   }
 
   const signatureHeader = request.headers.get("unipile-auth");
-
   if (!signatureHeader) {
     log.warn({ correlationId }, "incoming webhook missing Unipile-Auth header");
     return NextResponse.json({ error: "Missing signature" }, { status: 401 });
   }
-
-  if (!verifySignature(rawBody, signatureHeader, webhookSecret)) {
+  if (!verifySignature(signatureHeader, webhookSecret)) {
     log.warn({ correlationId }, "invalid webhook signature — rejected");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  // ── 3. Parse payload ──────────────────────────────────────────────────────
   let payload: UnipileWebhookPayload;
   try {
     payload = JSON.parse(rawBody) as UnipileWebhookPayload;
@@ -110,15 +101,13 @@ export async function POST(request: NextRequest) {
   const eventType = payload.event_type;
   log.info({ eventType, correlationId }, "webhook received");
 
-  // ── 4. Admin Supabase client (bypasses RLS — no user session in webhooks) ─
-  const supabase = createClient<Database>(
+  const supabase: DB = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
-  // ── 5. Persist raw payload to webhook_logs ────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: logRow, error: logError } = await (supabase as any)
+  // Persist raw payload to webhook_logs
+  const { data: logRow, error: logError } = await supabase
     .from("webhook_logs")
     .insert({
       event_type: eventType,
@@ -128,56 +117,29 @@ export async function POST(request: NextRequest) {
     })
     .select("id")
     .single();
-
   if (logError) {
-    // Non-fatal — log the error but continue processing
     log.error({ error: logError, correlationId }, "failed to write webhook_log row");
   }
+  const webhookLogId = (logRow as { id: string } | null)?.id ?? null;
 
-  const webhookLogId = logRow?.id ?? null;
-
-  // ── 6. Route and process ──────────────────────────────────────────────────
-  // We process synchronously: Supabase writes are fast (~50 ms) and Unipile
-  // expects a 200 within a few seconds. For Vercel deployments that need true
-  // background execution, wrap processWebhook() with waitUntil() from
-  // @vercel/functions and return the 200 first.
   try {
     if (eventType === "message.received") {
-      await handleNewMessage(
-        supabase,
-        payload as UnipileMessageReceivedPayload,
-        correlationId
-      );
+      await handleNewMessage(supabase, payload as UnipileMessageReceivedPayload, correlationId);
     } else if (eventType === "relation.new") {
-      await handleNewRelation(
-        supabase,
-        payload as UnipileRelationNewPayload,
-        correlationId
-      );
+      await handleNewRelation(supabase, payload as UnipileRelationNewPayload, correlationId);
     } else {
       log.info({ eventType, correlationId }, "unhandled webhook event type — ignored");
     }
 
-    // Mark log row as processed
     if (webhookLogId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("webhook_logs")
-        .update({ processed: true })
-        .eq("id", webhookLogId);
+      await supabase.from("webhook_logs").update({ processed: true }).eq("id", webhookLogId);
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     log.error({ error: err, eventType, correlationId }, "webhook processing failed");
-
     if (webhookLogId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("webhook_logs")
-        .update({ processing_error: errMsg })
-        .eq("id", webhookLogId);
+      await supabase.from("webhook_logs").update({ processing_error: errMsg }).eq("id", webhookLogId);
     }
-    // Return 200 anyway — Unipile should not retry for application-level errors
   }
 
   return NextResponse.json({ received: true, correlationId }, { status: 200 });
@@ -185,16 +147,7 @@ export async function POST(request: NextRequest) {
 
 // ── Webhook auth verification ─────────────────────────────────────────────────
 
-/**
- * Constant-time comparison of the Unipile-Auth header value against the
- * configured WEBHOOK_SECRET.
- *
- * Unipile does not compute HMAC signatures — instead, you configure a custom
- * header (Unipile-Auth: <secret>) when registering the webhook, and Unipile
- * includes it verbatim in every POST. We use timingSafeEqual to prevent
- * timing-based secret enumeration.
- */
-function verifySignature(_body: string, header: string, secret: string): boolean {
+function verifySignature(header: string, secret: string): boolean {
   try {
     const a = Buffer.from(header);
     const b = Buffer.from(secret);
@@ -205,334 +158,53 @@ function verifySignature(_body: string, header: string, secret: string): boolean
   }
 }
 
-// ── handleNewMessage ──────────────────────────────────────────────────────────
+// ── Handlers (lookup + delegate to shared leadSync) ────────────────────────────
 
 async function handleNewMessage(
-  supabase: SupabaseClient<Database>,
+  supabase: DB,
   payload: UnipileMessageReceivedPayload,
-  correlationId: string
+  correlationId: string,
 ): Promise<void> {
   const log = withCorrelationId(correlationId);
   const { id: messageId, chat_id, text, sender, timestamp } = payload.data;
-  const now = new Date().toISOString();
 
-  log.info({ chatId: chat_id, senderId: sender.provider_id }, "processing message.received");
-
-  // ── Idempotency: skip if this message was already stored ──────────────────
-  // Unipile retries webhooks and /api/linkedin/sync-inbox can pull the same
-  // message; without this check we'd duplicate the row, re-pause enrollments
-  // and double-increment replies_received.
-  if (messageId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existing } = await (supabase as any)
-      .from("messages")
-      .select("id")
-      .eq("unipile_message_id", messageId)
-      .limit(1)
-      .maybeSingle();
-
-    if (existing) {
-      log.info({ messageId }, "message already stored — skipping duplicate webhook");
-      return;
-    }
-  }
-
-  // ── Find lead: chat_id first, then provider_id fallback ───────────────────
-  let lead: Lead | null = null;
-
-  if (chat_id) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
-      .from("leads")
-      .select("*")
-      .eq("unipile_chat_id", chat_id)
-      .maybeSingle();
-    lead = data as Lead | null;
-  }
-
+  let lead = chat_id ? await findLeadByChatId(supabase, chat_id) : null;
   if (!lead && sender.provider_id) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
-      .from("leads")
-      .select("*")
-      .eq("linkedin_provider_id", sender.provider_id)
-      .maybeSingle();
-    lead = data as Lead | null;
+    lead = await findLeadByProviderId(supabase, sender.provider_id);
   }
-
   if (!lead) {
-    log.warn(
-      { chatId: chat_id, senderId: sender.provider_id },
-      "no lead found for inbound message — skipping"
-    );
+    log.warn({ chatId: chat_id, senderId: sender.provider_id }, "no lead for inbound message — skipping");
     return;
   }
 
-  // Backfill chat_id onto the lead if not already stored
-  if (chat_id && !lead.unipile_chat_id) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
-      .from("leads")
-      .update({ unipile_chat_id: chat_id })
-      .eq("id", lead.id);
-  }
-
-  const userId = lead.user_id;
-
-  // ── Opt-out detection ─────────────────────────────────────────────────────
-  const lowerText = (text ?? "").toLowerCase();
-  const isOptOut = OPT_OUT_KEYWORDS.some((kw) => lowerText.includes(kw));
-
-  // ── Determine new lead status ─────────────────────────────────────────────
-  // Don't downgrade statuses that signal high intent or existing human follow-up
-  const preserveStatuses: LeadStatus[] = ["interested", "meeting_booked", "converted"];
-  let newStatus: LeadStatus = isOptOut ? "do_not_contact" : "replied";
-  if (!isOptOut && preserveStatuses.includes(lead.status)) {
-    newStatus = lead.status;
-  }
-
-  // ── Update lead ───────────────────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any)
-    .from("leads")
-    .update({ status: newStatus, last_replied_at: now })
-    .eq("id", lead.id);
-
-  // ── Store inbound message ─────────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("messages").insert({
-    user_id: userId,
-    lead_id: lead.id,
-    campaign_id: lead.campaign_id,
-    unipile_chat_id: chat_id ?? null,
-    unipile_message_id: messageId ?? null,
-    direction: "inbound" as const,
-    message_text: text ?? "",
-    message_type: "linkedin_message",
-    sent_at: timestamp ?? now,
-    delivered_at: timestamp ?? now,
-    read_at: null,
-    is_automated: false,
-    sequence_step_id: null,
-    personalization_variables: {},
+  await recordInboundMessage(supabase, {
+    lead,
+    text,
+    messageId,
+    chatId: chat_id,
+    timestamp,
+    correlationId,
   });
-
-  // ── Pause (or fail if opt-out) active sequence enrollments ───────────────
-  const newEnrollmentStatus = isOptOut ? "failed" : "paused";
-  const pauseReason = isOptOut
-    ? `Lead opted out: "${text?.slice(0, 200)}"`
-    : "Lead replied — paused for manual review";
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: enrollments } = await (supabase as any)
-    .from("sequence_enrollments")
-    .select("id")
-    .eq("lead_id", lead.id)
-    .in("status", ["active"])
-    .limit(10);
-
-  if (enrollments && enrollments.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
-      .from("sequence_enrollments")
-      .update({
-        status: newEnrollmentStatus,
-        error_message: isOptOut ? pauseReason : null,
-        last_executed_at: now,
-      })
-      .in(
-        "id",
-        (enrollments as { id: string }[]).map((e) => e.id)
-      );
-
-    log.info(
-      { enrollmentCount: enrollments.length, newStatus: newEnrollmentStatus },
-      "sequence enrollments updated"
-    );
-  }
-
-  // ── Log activity ──────────────────────────────────────────────────────────
-  const activityType: ActivityType = isOptOut ? "status_changed" : "message_received";
-  const activityDescription = isOptOut
-    ? `Lead opted out: "${text?.slice(0, 100)}"`
-    : `Inbound message received: "${text?.slice(0, 100)}"`;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("activities").insert({
-    user_id: userId,
-    lead_id: lead.id,
-    campaign_id: lead.campaign_id,
-    activity_type: activityType,
-    description: activityDescription,
-    metadata: {
-      chat_id,
-      message_id: messageId,
-      sender_provider_id: sender.provider_id,
-      is_opt_out: isOptOut,
-      new_status: newStatus,
-      correlation_id: correlationId,
-    },
-  });
-
-  // ── Increment campaign replies_received counter (atomic) ──────────────────
-  if (lead.campaign_id) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).rpc("increment_campaign_stat", {
-      p_campaign_id: lead.campaign_id,
-      p_field: "replies_received",
-      p_delta: 1,
-    });
-  }
-
-  log.info({ leadId: lead.id, newStatus, isOptOut }, "message.received processed");
 }
 
-// ── handleNewRelation ─────────────────────────────────────────────────────────
-
 async function handleNewRelation(
-  supabase: SupabaseClient<Database>,
+  supabase: DB,
   payload: UnipileRelationNewPayload,
-  correlationId: string
+  correlationId: string,
 ): Promise<void> {
   const log = withCorrelationId(correlationId);
   const { provider_id } = payload.data;
-  const now = new Date().toISOString();
 
-  log.info({ providerId: provider_id }, "processing relation.new");
-
-  // ── Find lead by provider_id ──────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: leadData } = await (supabase as any)
-    .from("leads")
-    .select("*")
-    .eq("linkedin_provider_id", provider_id)
-    .maybeSingle();
-
-  const lead = leadData as Lead | null;
-
+  const lead = await findLeadByProviderId(supabase, provider_id);
   if (!lead) {
-    log.warn({ providerId: provider_id }, "no lead found for relation.new — skipping");
+    log.warn({ providerId: provider_id }, "no lead for relation.new — skipping");
     return;
   }
 
-  const userId = lead.user_id;
-
-  // ── Update lead status (only if not already past invite_accepted) ─────────
-  const preserveStatuses: LeadStatus[] = [
-    "replied",
-    "interested",
-    "not_interested",
-    "meeting_booked",
-    "converted",
-    "do_not_contact",
-  ];
-  if (!preserveStatuses.includes(lead.status)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
-      .from("leads")
-      .update({ status: "invite_accepted" })
-      .eq("id", lead.id);
-  }
-
-  // ── Advance wait_for_acceptance enrollment steps ───────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: enrollments } = await (supabase as any)
-    .from("sequence_enrollments")
-    .select("*")
-    .eq("lead_id", lead.id)
-    .eq("status", "active")
-    .limit(5);
-
-  if (enrollments && (enrollments as unknown[]).length > 0) {
-    for (const rawEnrollment of enrollments as Record<string, unknown>[]) {
-      const enrollment = rawEnrollment as {
-        id: string;
-        sequence_id: string;
-        current_step: number;
-      };
-
-      // Only act on enrollments currently sitting on a wait_for_acceptance step
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: currentStep } = await (supabase as any)
-        .from("sequence_steps")
-        .select("step_type, step_order")
-        .eq("sequence_id", enrollment.sequence_id)
-        .eq("step_order", enrollment.current_step)
-        .maybeSingle();
-
-      if (!currentStep || currentStep.step_type !== "wait_for_acceptance") continue;
-
-      // Find the next step in the sequence
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: nextStepData } = await (supabase as any)
-        .from("sequence_steps")
-        .select("step_order")
-        .eq("sequence_id", enrollment.sequence_id)
-        .gt("step_order", currentStep.step_order)
-        .order("step_order", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (nextStepData) {
-        // Advance enrollment — set next_execution_at to now so executor picks it up immediately
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
-          .from("sequence_enrollments")
-          .update({
-            current_step: (nextStepData as { step_order: number }).step_order,
-            next_execution_at: now,
-            last_executed_at: now,
-          })
-          .eq("id", enrollment.id);
-
-        log.info(
-          {
-            enrollmentId: enrollment.id,
-            nextStep: (nextStepData as { step_order: number }).step_order,
-          },
-          "enrollment advanced past wait_for_acceptance"
-        );
-      } else {
-        // No further steps — mark complete
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
-          .from("sequence_enrollments")
-          .update({
-            status: "completed",
-            last_executed_at: now,
-            next_execution_at: null,
-          })
-          .eq("id", enrollment.id);
-
-        log.info({ enrollmentId: enrollment.id }, "enrollment completed — no steps after wait_for_acceptance");
-      }
-    }
-  }
-
-  // ── Log activity ──────────────────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("activities").insert({
-    user_id: userId,
-    lead_id: lead.id,
-    campaign_id: lead.campaign_id,
-    activity_type: "invite_accepted" as ActivityType,
-    description: "LinkedIn connection request accepted",
-    metadata: {
-      provider_id,
-      public_identifier: payload.data.public_identifier ?? null,
-      correlation_id: correlationId,
-    },
+  await markInviteAccepted(supabase, {
+    lead,
+    providerId: provider_id,
+    publicIdentifier: payload.data.public_identifier,
+    correlationId,
   });
-
-  // ── Increment campaign invites_accepted counter (atomic) ──────────────────
-  if (lead.campaign_id) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).rpc("increment_campaign_stat", {
-      p_campaign_id: lead.campaign_id,
-      p_field: "invites_accepted",
-      p_delta: 1,
-    });
-  }
-
-  log.info({ leadId: lead.id, providerId: provider_id }, "relation.new processed");
 }
