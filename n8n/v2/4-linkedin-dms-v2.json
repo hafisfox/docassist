@@ -1,0 +1,1000 @@
+{
+  "name": "4. LinkedIn DMs (v2)",
+  "nodes": [
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('global').first().json.sender_id }}",
+        "contextWindowLength": 30
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        32,
+        192
+      ],
+      "id": "4f113e4b-58bc-4369-a431-7c348e5a4519",
+      "name": "memory"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "linkedin-messages-v2",
+        "options": {}
+      },
+      "id": "62a103aa-6638-4f5d-ba0b-a75389666053",
+      "name": "trigger",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -992,
+        64
+      ],
+      "webhookId": "2bdfea19-d617-4510-9eb5-19956d432f30",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d737da4a-cc6f-4dc5-a8b7-0fd60f6a45b5",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "id": "924bd124-4ef1-4f41-8a3d-819d97f053e2",
+              "name": "message_id",
+              "type": "string",
+              "value": "={{ $json.body.message_id }}"
+            },
+            {
+              "id": "c05786b0-b2af-4d87-a111-aae969ce50e9",
+              "name": "chat_id",
+              "type": "string",
+              "value": "={{ $json.body.chat_id }}"
+            },
+            {
+              "id": "342fd20c-81be-42c7-aa85-a525fa9760fb",
+              "name": "sender",
+              "type": "string",
+              "value": "={{ $json.body.sender.attendee_name }}"
+            },
+            {
+              "id": "b40f55d7-928e-436f-90b7-b4048cd80423",
+              "name": "sender_profile",
+              "type": "string",
+              "value": "={{ $json.body.sender.attendee_profile_url }}"
+            },
+            {
+              "id": "efb12c87-42f5-4087-82b8-8dbda5aaf465",
+              "name": "sender_id",
+              "type": "string",
+              "value": "={{ $json.body.sender.attendee_id }}"
+            },
+            {
+              "id": "d71bab44-00ea-45ae-a5d7-939a1835880f",
+              "name": "occupation",
+              "value": "={{ $json.body.sender.attendee_specifics?.occupation || 'Not specified' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "da1737a7-1940-4ac8-80f1-18b76fb69d9d",
+      "name": "global",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        -768,
+        64
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "610723ca-a54f-4748-b19c-089dd0a26e0b",
+              "leftValue": "={{ $json.sender_id }}",
+              "rightValue": "lpb-QUcIVjiLLYg2CzWfWg",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -544,
+        64
+      ],
+      "id": "c011892d-9fee-4e80-b7dd-cc0773e0f34d",
+      "name": "self check"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 21) + 10 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -320,
+        -32
+      ],
+      "id": "c25c8207-7054-466d-8e07-99a7b27f530b",
+      "name": "wait",
+      "webhookId": "f91d8fa4-c085-4841-a180-014390e7cb79"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1948596804,
+          "mode": "list",
+          "cachedResultName": "3_CONNECTIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=1948596804"
+        },
+        "filtersUI": {
+          "values": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -360,
+        64
+      ],
+      "id": "4ac61730-a76b-4e40-9120-b6aadd1dca76",
+      "name": "readConnAll",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const g = $('global').first().json;\nconst chatId = String(g.chat_id || '');\nlet segment = 'UNKNOWN', region = '';\nfor (const it of $('readConnAll').all()) {\n  if (String(it.json.chat_id || '') === chatId) { segment = it.json.segment || 'UNKNOWN'; region = it.json.region || ''; break; }\n}\nreturn [{ json: { ...g, segment, region } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        64
+      ],
+      "id": "c5d3dde0-fea4-42f3-a841-dda6ac218b65",
+      "name": "pickSeg"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=═══ NEW LINKEDIN MESSAGE ═══\nSEGMENT: {{ $json.segment || 'UNKNOWN' }}\n\nProspect: {{ $json.sender }}\nTitle/Specialty: {{ $json.occupation }}\nLinkedIn: {{ $json.sender_profile }}\nChat ID: {{ $json.chat_id }}\nReceived: {{ $now.format('dd MMM yyyy, HH:mm') }} IST\n\nTheir message (verbatim):\n{{ $json.message }}\n\nTASK\n1. Review the conversation history in memory.\n2. Decide warmth (COLD/WARM/HOT) and stage (CONNECTED/INTERESTED/BOOKED_OR_DETAILS_SHARED).\n3. Follow the SEGMENT objective and HARD RULES. Never ask for a phone number; never proactively ask for an email.\n4. If warmth is WARM/HOT, OR they shared contact info, OR they asked a question needing a human -> call email_received.\n5. Emit the JSON object exactly per the output contract. The \"message\" field is ONLY the plain text the prospect will read.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are an executive outreach assistant acting on behalf of Abilash Raghunandanan, founder of DoctorAssist.AI, replying to LinkedIn messages. Move the RIGHT conversations forward without spam signals.\n\nDoctorAssist.AI is a clinical decision-support layer that runs ALONGSIDE a hospital's existing EHR (risk-pattern surveillance, drug-interaction intercepts at order entry, documentation). It integrates; it does not replace.\n\nIDENTITY & STYLE\n- You ARE Abilash. Never address the prospect as \"Abilash\". Never sign off with a name.\n- Warm, concise, peer-to-peer. Use the prospect's real first name; if unclear, open without a name.\n- Plain text only: no markdown, no code fences.\n\nSEGMENT (authoritative; provided as SEGMENT in the prompt)\n- DECISION_MAKER (segment = CMO, CIO or ADMIN): a hospital decision-maker. Objective: qualify (which problem matters, rough timeline, who else is involved) and — only once there is genuine interest — offer a 20-minute founder-led walkthrough on a live de-identified case.\n- DOCTOR (segment = DOCTOR): an individual physician. Objective: route them to FREE verified-physician access and invite them to try one real (de-identified) case. Access is genuinely free for verified physicians — do NOT manufacture scarcity (\"limited period\") and do NOT push a call unless THEY ask.\n- If SEGMENT is empty/UNKNOWN: infer from their title (leadership titles -> DECISION_MAKER, clinical titles -> DOCTOR).\n\nHARD RULES\n- NEVER ask for a phone number. NEVER proactively ask for an email.\n- Accept an email only if volunteered or needed to confirm a meeting they requested.\n- No invented statistics or over-claims.\n\nCALENDLY (decision-makers, only once interested): https://calendly.com/hello-doctorassist/20min  (20-minute, founder-led)\n\nSTAGES (assess from this message + memory)\n- CONNECTED (neutral / early reply, no clear interest):\n  * DECISION_MAKER: one line of useful context + a single low-friction question (is clinical variation / alert fatigue / documentation load on the agenda this year?). Offer to send a short 2-page overview. Do NOT ask for contact details.\n  * DOCTOR: no pitch; offer something genuinely useful and mention free verified access if it fits. No call.\n- INTERESTED (asked to see it / asked next steps / positive signal):\n  * DECISION_MAKER: offer the 20-minute walkthrough and share the Calendly link.\n  * DOCTOR: point them to free verified access to try one real case (no call unless they ask).\n- BOOKED_OR_DETAILS_SHARED (booked / shared contact / confirmed a time):\n  * Confirm warmly that Abilash will personally be on the call; ask for nothing further.\n\nTOOL email_received (founder CRM alert — use generously): call it whenever warmth is WARM or HOT, OR they shared an email/phone, OR they asked a real question that may need a human. Populate Subject \"🎯 LinkedIn lead — [Full Name] ([SEGMENT])\" and a Message with name, segment, any contact info, LinkedIn URL, title, chat_id, stage, and their verbatim message.\n\nOUTPUT CONTRACT — return ONLY one raw JSON object (no markdown, no code fences):\n{\n  \"warmth\": \"COLD\" | \"WARM\" | \"HOT\",\n  \"stage\": \"CONNECTED\" | \"INTERESTED\" | \"BOOKED_OR_DETAILS_SHARED\",\n  \"message\": \"<plain-text reply only — no JSON, no braces, no labels>\",\n  \"contact_info_extracted\": \"<email or phone if they shared one>\" | null\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        32,
+        -32
+      ],
+      "id": "724451b9-2992-4ad7-927b-c9eb02ff29fd",
+      "name": "message agent",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4-6",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        192
+      ],
+      "id": "c562c999-0dcb-465a-9288-fc54c91ae058",
+      "name": "sonnet 4.6",
+      "credentials": {
+        "openRouterApi": {
+          "id": "vOX3iH6PGLVUQiqK",
+          "name": "OpenRouter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"warmth\": {\n      \"type\": \"string\",\n      \"enum\": [\"COLD\", \"WARM\", \"HOT\"],\n      \"description\": \"The assessed interest level of the prospect.\"\n    },\n    \"stage\": {\n      \"type\": \"string\",\n      \"enum\": [\"CONNECTED\", \"INTERESTED\", \"BOOKED_OR_DETAILS_SHARED\"],\n      \"description\": \"The current conversation stage based on their message.\"\n    },\n    \"message\": {\n      \"type\": \"string\",\n      \"description\": \"ONLY the plain human-readable text to send on LinkedIn. Must NOT contain JSON, curly braces, field labels, or metadata.\"\n    },\n    \"contact_info_extracted\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"The doctor's email or phone number if they shared one in this message, otherwise null.\"\n    }\n  },\n  \"required\": [\"warmth\", \"stage\", \"message\", \"contact_info_extracted\"],\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        192
+      ],
+      "id": "458dfc55-7cf9-4d04-82dd-40810b7e0a23",
+      "name": "parser"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "sendTo": "hello@doctorassist.ai",
+        "subject": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Subject', '🎯 Meeting Lead — (LinkedIn)', 'string') }}",
+        "emailType": "text",
+        "message": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Message', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.2,
+      "position": [
+        160,
+        192
+      ],
+      "id": "54a66c8a-ba30-4058-9f32-8931ae64a679",
+      "name": "email_received",
+      "webhookId": "4953f642-1e1e-4123-a487-f0621e8729e0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "25pSQAAbMMKBhUV4",
+          "name": "Gmail EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "91571edc-b88f-4c80-a2cd-f0af54c56128",
+              "leftValue": "={{ $json.output.message }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        496,
+        -32
+      ],
+      "id": "faf47d14-35d3-4f70-80bd-b271c16a3f7d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api33.unipile.com:16386/api/v1/chats/{{ $('global').first().json.chat_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.output.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f02c66a9-7e64-471a-b91e-49c63fad373f",
+      "name": "send",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        -48
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tavATpOIaLDw6WZ2",
+          "name": "Unipile"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 897669432,
+          "mode": "list",
+          "cachedResultName": "4_CONVERSATIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=897669432"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ $('global').first().json.chat_id }}",
+            "message_id": "={{ $('global').first().json.message_id }}",
+            "direction": "inbound",
+            "sender_name": "={{ $('global').first().json.sender }}",
+            "message_text": "={{ $('global').first().json.message }}",
+            "timestamp": "={{ $now.format('dd/MM/yy hh:mm') }}",
+            "warmth_score": "={{ $('message agent').first().json.output.warmth }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "direction",
+              "displayName": "direction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sender_name",
+              "displayName": "sender_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_text",
+              "displayName": "message_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "warmth_score",
+              "displayName": "warmth_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        944,
+        -48
+      ],
+      "id": "bc60027e-ce19-4e20-b781-13bb5df3c322",
+      "name": "update_in",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1948596804,
+          "mode": "list",
+          "cachedResultName": "3_CONNECTIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=1948596804"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ $json.chat_id }}",
+            "warmth": "={{ $json.warmth_score }}",
+            "last_message_at": "={{ $now.format('dd/MM/yy hh:mm') }}",
+            "stage": "={{ $('message agent').first().json.output.stage }}"
+          },
+          "matchingColumns": [
+            "chat_id"
+          ],
+          "schema": [
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "provider_id",
+              "displayName": "provider_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connected_at",
+              "displayName": "connected_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "welcome_sent_at",
+              "displayName": "welcome_sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "welcome_message",
+              "displayName": "welcome_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "warmth",
+              "displayName": "warmth",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_message_at",
+              "displayName": "last_message_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_count",
+              "displayName": "message_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "demo_booked_at",
+              "displayName": "demo_booked_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "calendly_link_sent",
+              "displayName": "calendly_link_sent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1168,
+        -48
+      ],
+      "id": "46cad994-1dcb-479d-8317-88ae5d3d19cd",
+      "name": "update_in_2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 897669432,
+          "mode": "list",
+          "cachedResultName": "4_CONVERSATIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=897669432"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ $json.chat_id }}",
+            "message_id": "={{ $json.message_id }}",
+            "direction": "outbound",
+            "sender_name": "={{ $json.sender }}",
+            "message_text": "={{ $json.message }}",
+            "timestamp": "={{ $now.format('dd/MM/yy hh:mm') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "direction",
+              "displayName": "direction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sender_name",
+              "displayName": "sender_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_text",
+              "displayName": "message_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "warmth_score",
+              "displayName": "warmth_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -320,
+        160
+      ],
+      "id": "daf9249c-61e4-47c8-9f03-ea2b91ca2ac2",
+      "name": "update_out",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3ea97457-228a-450f-ab71-8cf87950c60d",
+              "leftValue": "={{ $('message agent').first().json.output.warmth }}",
+              "rightValue": "COLD",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1392,
+        -48
+      ],
+      "id": "711a7418-a167-4287-9d8f-7f2be78dd928",
+      "name": "warmthIF"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "sendTo": "hello@doctorassist.ai",
+        "subject": "=🔥 {{ $('message agent').first().json.output.warmth }} LinkedIn lead — {{ $('global').first().json.sender }} ({{ $('pickSeg').first().json.segment }})",
+        "emailType": "text",
+        "message": "=Warmth: {{ $('message agent').first().json.output.warmth }}\nStage: {{ $('message agent').first().json.output.stage }}\nSegment: {{ $('pickSeg').first().json.segment }}\nProspect: {{ $('global').first().json.sender }}\nTitle: {{ $('global').first().json.occupation }}\nLinkedIn: {{ $('global').first().json.sender_profile }}\nChat: {{ $('global').first().json.chat_id }}\nContact shared: {{ $('message agent').first().json.output.contact_info_extracted || 'none' }}\n\nTheir message:\n{{ $('global').first().json.message }}\n\nOur draft reply (already sent):\n{{ $('message agent').first().json.output.message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1616,
+        -120
+      ],
+      "id": "101fced1-4aee-482e-a3c5-3aaf020e736b",
+      "name": "alertEmail",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "25pSQAAbMMKBhUV4",
+          "name": "Gmail EVO"
+        }
+      },
+      "webhookId": "8c038a7e-49f6-4c80-a26e-fb12ddb48b1f"
+    }
+  ],
+  "connections": {
+    "memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "message agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "trigger": {
+      "main": [
+        [
+          {
+            "node": "global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "global": {
+      "main": [
+        [
+          {
+            "node": "self check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "self check": {
+      "main": [
+        [
+          {
+            "node": "wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "update_out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wait": {
+      "main": [
+        [
+          {
+            "node": "readConnAll",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "readConnAll": {
+      "main": [
+        [
+          {
+            "node": "pickSeg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pickSeg": {
+      "main": [
+        [
+          {
+            "node": "message agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "message agent": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sonnet 4.6": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "message agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "message agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "email_received": {
+      "ai_tool": [
+        [
+          {
+            "node": "message agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send": {
+      "main": [
+        [
+          {
+            "node": "update_in",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_in": {
+      "main": [
+        [
+          {
+            "node": "update_in_2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_in_2": {
+      "main": [
+        [
+          {
+            "node": "warmthIF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "warmthIF": {
+      "main": [
+        [
+          {
+            "node": "alertEmail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

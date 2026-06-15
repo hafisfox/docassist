@@ -35,6 +35,9 @@ yarn-error.log*
 # ...but keep the example template tracked
 !.env.example
 
+# MCP server config (contains n8n bearer token — keep out of git)
+.mcp.json
+
 # vercel
 .vercel
 

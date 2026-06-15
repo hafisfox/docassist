@@ -1,0 +1,792 @@
+{
+  "name": "1. LinkedIn Scrapper (v2)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -688,
+        160
+      ],
+      "id": "ad332493-39b2-4832-991a-9641c96b0bc0",
+      "name": "trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Segment rotation by weekday (Mon=CMO, Tue=CIO, Wed=Doctors, Thu=Admin, Fri=Doctors). Weekend = halt.\nconst dow = $now.weekday; // 1=Mon .. 7=Sun (luxon)\nconst map = { 1:'CMO', 2:'CIO', 3:'DOCTOR', 4:'ADMIN', 5:'DOCTOR' };\nconst segment = map[dow];\nif (!segment) return []; // weekend -> no scrape\n\n// === Active wave location IDs ===\n// TODO(handoff): split the 19-country list into Wave 1/2/3 and set ACTIVE_WAVE.\n// Wave 1 default = current 20 IDs (IN + GCC + SG region set). Replace per Section 3 of the strategy.\nconst WAVE = {\n  1: [\"101165590\",\"101282230\",\"105015875\",\"102890719\",\"106693272\",\"105117694\",\"104514075\",\"103819153\",\"100459316\",\"104738216\",\"100565514\",\"103301389\",\"103644278\",\"104305776\",\"100456013\",\"104113529\",\"103251713\",\"104240759\",\"102713980\",\"102454443\"],\n  2: [], // UK, IE, NL, SE, DK, NO, FI, BE  (fill in)\n  3: []  // US, DE, AT, CH, FR              (fill in)\n};\nconst ACTIVE_WAVE = 1;\nconst locations = WAVE[ACTIVE_WAVE];\n\nconst INDUSTRY = [\"14\",\"13\",\"3238\",\"124\"]; // Hospitals & Health Care + adjacent\nconst defs = {\n  CMO:    { keywords:'\"Chief Medical Officer\" OR \"Medical Director\" OR \"Clinical Director\"', seniority:[\"cxo\",\"vice_president\",\"director\"], headcount:[{min:51,max:10000}], posted:false, search_name:'Hosp_CMO_Global_Active', limit:100 },\n  CIO:    { keywords:'\"Chief Information Officer\" OR CIO OR \"Chief Digital Officer\" OR \"Head of Digital\" OR \"Chief Medical Information Officer\" OR CMIO', seniority:[\"cxo\",\"vice_president\",\"director\"], headcount:[{min:201,max:10000}], posted:false, search_name:'Hosp_CIO_Global_Active', limit:100 },\n  ADMIN:  { keywords:'\"Hospital Administrator\" OR \"Director Operations\" OR \"Chief Operating Officer\"', seniority:[\"cxo\",\"vice_president\",\"director\",\"experienced_manager\"], headcount:[{min:51,max:10000}], posted:false, search_name:'Hosp_Admin_Global_Active', limit:100 },\n  DOCTOR: { keywords:'physician OR consultant OR specialist OR oncologist OR \"medical oncologist\" OR \"hemato-oncologist\"', seniority:[], headcount:[], posted:true, search_name:'Doc_Clinical_Active', limit:40 }\n};\nconst d = defs[segment];\nconst searchPayload = { api:'sales_navigator', category:'people', keywords:d.keywords, location:{ include: locations }, industry:{ include: INDUSTRY }, messaged_recently:false };\nif (d.seniority.length) searchPayload.seniority = { include: d.seniority };\nif (d.headcount.length) searchPayload.company_headcount = d.headcount;\nif (d.posted) searchPayload.posted_on_linkedin = true; // mandatory ONLY for the doctor track\nreturn [{ json: { segment, search_name:d.search_name, limit:d.limit, wave:ACTIVE_WAVE, searchPayload } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        160
+      ],
+      "id": "084f931c-e199-4c41-b8ab-b2f0d1c2ae9c",
+      "name": "segmentConfig"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 559453142,
+          "mode": "list",
+          "cachedResultName": "1_LEADS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=559453142"
+        },
+        "filtersUI": {
+          "values": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -464,
+        160
+      ],
+      "id": "54645c71-8bd6-4f85-b98f-d3f36c4ef6f4",
+      "name": "leads",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "leads",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        160
+      ],
+      "id": "f948abc2-ce8c-4117-9d50-68ebe17606b6",
+      "name": "aggregate"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api33.unipile.com:16386/api/v1/linkedin/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "={{ $('segmentConfig').first().json.limit }}"
+            },
+            {
+              "name": "account_id",
+              "value": "u99JHDpwTMC9n8XdiLpm9g"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('segmentConfig').first().json.searchPayload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -16,
+        160
+      ],
+      "id": "80c5557e-64ab-4eaf-b27a-db6bb3deeb05",
+      "name": "search",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tavATpOIaLDw6WZ2",
+          "name": "Unipile"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const existingRows = $('leads').all();\nconst existingIds = new Set();\nfor (const row of existingRows) { const id = row.json.provider_id; if (id && id !== 'N/A') existingIds.add(id); }\n\nconst cfg = $('segmentConfig').first().json;\nconst segment = cfg.segment || '';\nconst searchName = cfg.search_name || '';\n\nfunction deriveRegion(loc) {\n  const s = (loc || '').toLowerCase();\n  const map = [\n    ['IN','India',['india','mumbai','delhi','bengaluru','bangalore','hyderabad','chennai','pune','kolkata','ahmedabad','kochi','lucknow','gurgaon','gurugram','noida']],\n    ['AE','United Arab Emirates',['united arab emirates','uae','dubai','abu dhabi','sharjah']],\n    ['SA','Saudi Arabia',['saudi','riyadh','jeddah','dammam','mecca','medina']],\n    ['QA','Qatar',['qatar','doha']],\n    ['KW','Kuwait',['kuwait']],\n    ['OM','Oman',['oman','muscat']],\n    ['SG','Singapore',['singapore']],\n    ['UK','United Kingdom',['united kingdom','london','england','scotland','wales','manchester','birmingham','edinburgh','glasgow','leeds']],\n    ['IE','Ireland',['ireland','dublin','cork']],\n    ['NL','Netherlands',['netherlands','amsterdam','rotterdam','utrecht','the hague']],\n    ['BE','Belgium',['belgium','brussels','antwerp','ghent']],\n    ['SE','Sweden',['sweden','stockholm','gothenburg','malmo']],\n    ['DK','Denmark',['denmark','copenhagen','aarhus']],\n    ['NO','Norway',['norway','oslo','bergen']],\n    ['FI','Finland',['finland','helsinki','espoo']],\n    ['DE','Germany',['germany','berlin','munich','münchen','hamburg','frankfurt','cologne','köln','stuttgart']],\n    ['AT','Austria',['austria','vienna','wien','graz','salzburg']],\n    ['CH','Switzerland',['switzerland','zurich','zürich','geneva','genève','basel','bern','lausanne']],\n    ['FR','France',['france','paris','lyon','marseille','toulouse','nice','bordeaux']],\n    ['US_ET','United States',['united states','usa',', us','new york','boston','chicago','houston','los angeles','san francisco','seattle','atlanta','dallas','washington','philadelphia','miami','texas','california','florida','massachusetts','new jersey']]\n  ];\n  for (const [region,country,keys] of map) for (const k of keys) if (s.includes(k)) return { region, country };\n  return { region:'', country:'' };\n}\n\nconst allPeople = $input.all().flatMap(item => item.json?.items ?? []);\nif (allPeople.length === 0) return [];\nconst seen = new Set();\nconst out = [];\nfor (const p of allPeople) {\n  const id = p.id;\n  if (!id || existingIds.has(id) || seen.has(id)) continue;\n  seen.add(id);\n  const cleanUrl = p.public_identifier ? `https://www.linkedin.com/in/${p.public_identifier}` : '';\n  const company = (p.current_positions && p.current_positions[0] && p.current_positions[0].company) || '';\n  const loc = p.location || 'N/A';\n  const { region, country } = deriveRegion(loc);\n  const leadId = 'LEAD-' + Date.now().toString(36).slice(-3).toUpperCase() + Math.random().toString(36).substring(2,6).toUpperCase();\n  out.push({ json: {\n    Lead_ID: leadId, Name: p.name || 'Unknown', Headline: p.headline || 'N/A', Location: loc,\n    Public_Identifier: p.public_identifier || 'N/A', Profile_URL: cleanUrl,\n    Network_Distance: p.network_distance || 'N/A', Verified: p.verified ? 'Yes' : 'No',\n    Shared_Connections: p.shared_connections_count ?? 0, ID: id,\n    Hospital_Name: company, Region: region, Country: country, Segment: segment,\n    Search_Name: searchName, Template_Safe: company ? 'TRUE' : 'FALSE'\n  }});\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        160
+      ],
+      "id": "a4de2a92-12b9-49ea-97fd-442461ecb031",
+      "name": "parser"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "leads",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        400,
+        160
+      ],
+      "id": "fb237a2c-7350-40db-b9f6-4a91803f9bb1",
+      "name": "aggregateLeads"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a B2B lead-qualification engine for DoctorAssist.AI (clinical decision-support AI for hospitals). Today's target SEGMENT is \"{{ $('segmentConfig').first().json.segment }}\" ({{ $('segmentConfig').first().json.search_name }}).\n\nSegment rules:\n- CMO: Chief Medical Officer / Medical Director / Clinical Director at a hospital or health system. REJECT pharma or medical-device sales reps who carry \"Medical Director\" titles.\n- CIO: CIO / CMIO / Chief Digital Officer / Head of Digital at a hospital or health system. REJECT generic IT vendors / consultancies.\n- ADMIN: Hospital Administrator / Director Operations / COO at a hospital. REJECT nursing-home or unrelated-industry administrators.\n- DOCTOR: a practising physician / consultant / specialist. REJECT medical students, residents/trainees, and non-practising (retired or industry) MDs.\n\nFor EACH lead below, assign a tier:\n- \"A\" = strong fit for the target segment\n- \"B\" = plausible fit\n- \"REJECT\" = wrong role/segment per the rules above\nUse name, headline, company and location to decide.\n\nReturn ONLY a raw JSON array (no prose, no markdown, no code fences). Each element:\n{\"id\":\"<lead ID exactly as given>\",\"tier\":\"A|B|REJECT\",\"segment_confirmed\":true|false,\"reason\":\"<=12 words\"}\n\nLEADS (JSON): {{ JSON.stringify($json.leads) }}",
+        "hasOutputParser": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        600,
+        160
+      ],
+      "id": "bbc681de-8316-4b72-b6a5-4d0816e5a524",
+      "name": "qualifier"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-haiku-4.5",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        600,
+        360
+      ],
+      "id": "24861958-80c3-4c58-8f6d-4e6029427c88",
+      "name": "qualifier model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "vOX3iH6PGLVUQiqK",
+          "name": "OpenRouter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = ($input.first().json.output ?? '[]').toString();\nlet scored = [];\ntry { scored = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch (e) { scored = []; }\nconst byId = {};\nfor (const s of (Array.isArray(scored) ? scored : [])) byId[s.id] = s;\nconst out = [];\nfor (const it of $('parser').all()) {\n  const lead = it.json;\n  const s = byId[lead.ID] || { tier:'B', segment_confirmed:true, reason:'unscored-default' };\n  if (String(s.tier).toUpperCase() === 'REJECT') continue;\n  out.push({ json: { ...lead, Tier: String(s.tier).toUpperCase(), Segment_Confirmed: s.segment_confirmed, Qual_Reason: s.reason } });\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        160
+      ],
+      "id": "a2cff5fa-fc07-4154-8ce3-a2a77e2cfdf1",
+      "name": "applyTiers"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1000,
+        160
+      ],
+      "id": "02c712c1-1428-4c7c-91cc-081684e3adc8",
+      "name": "loop"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6fd31dee-b23e-433f-904f-0172c60d025d",
+              "leftValue": "={{ $json.Segment }}",
+              "rightValue": "DOCTOR",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "8612df5b-d9d0-495b-8b60-1353c0b85f52",
+              "leftValue": "={{ $json.Tier }}",
+              "rightValue": "A",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1200,
+        160
+      ],
+      "id": "68922c60-d3f9-4cdb-a327-514bbfc620e1",
+      "name": "enrichIF"
+    },
+    {
+      "parameters": {
+        "url": "=https://api33.unipile.com:16386/api/v1/users/{{ $('loop').item.json.ID }}/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "account_id",
+              "value": "u99JHDpwTMC9n8XdiLpm9g"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1400,
+        60
+      ],
+      "id": "7867569a-fe5f-4e48-a1fb-7a94e0c4287b",
+      "name": "getPosts",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tavATpOIaLDw6WZ2",
+          "name": "Unipile"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('loop').item.json;\nlet lastPost = '', topic = '';\nconst resp = $input.first().json || {};\nconst arr = Array.isArray(resp) ? resp : (resp.items || resp.posts || []);\nif (Array.isArray(arr) && arr.length) {\n  arr.sort((a,b) => new Date(b.parsed_datetime || b.date || 0) - new Date(a.parsed_datetime || a.date || 0));\n  lastPost = arr[0].parsed_datetime || arr[0].date || '';\n  topic = (arr[0].text || '').replace(/\\s+/g,' ').trim().slice(0,80);\n}\nreturn [{ json: { ...lead, Last_Post_Date: lastPost, Topic: topic } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        60
+      ],
+      "id": "9f909eff-39a1-4692-a5ff-80c603f11cff",
+      "name": "setPost"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 559453142,
+          "mode": "list",
+          "cachedResultName": "1_LEADS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=559453142"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $json.Lead_ID }}",
+            "full_name": "={{ $json.Name }}",
+            "provider_id": "={{ $json.ID }}",
+            "profile_url": "={{ $json.Profile_URL }}",
+            "connection_degree": "={{ $json.Network_Distance }}",
+            "public_identifier": "={{ $json.Public_Identifier }}",
+            "headline": "={{ $json.Headline }}",
+            "status": "pending",
+            "scraped_at": "={{ $now.format('dd/MM/yy hh:mm') }}",
+            "location": "={{ $json.Location }}",
+            "hospital_name": "={{ $json.Hospital_Name ?? '' }}",
+            "segment": "={{ $json.Segment ?? '' }}",
+            "region": "={{ $json.Region ?? '' }}",
+            "country": "={{ $json.Country ?? '' }}",
+            "search_name": "={{ $json.Search_Name ?? '' }}",
+            "last_post_date": "={{ $json.Last_Post_Date ?? '' }}",
+            "topic": "={{ $json.Topic ?? '' }}",
+            "tier": "={{ $json.Tier ?? '' }}",
+            "template_safe": "={{ $json.Template_Safe ?? '' }}"
+          },
+          "matchingColumns": [
+            "provider_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "provider_id",
+              "displayName": "provider_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "public_identifier",
+              "displayName": "public_identifier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "headline",
+              "displayName": "headline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "profile_url",
+              "displayName": "profile_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connection_degree",
+              "displayName": "connection_degree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "scraped_at",
+              "displayName": "scraped_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hospital_name",
+              "displayName": "hospital_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "region",
+              "displayName": "region",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "country",
+              "displayName": "country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "search_name",
+              "displayName": "search_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "last_post_date",
+              "displayName": "last_post_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "topic",
+              "displayName": "topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tier",
+              "displayName": "tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "template_safe",
+              "displayName": "template_safe",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        160
+      ],
+      "id": "af733c23-8bae-455d-bf1f-4a20cadabe70",
+      "name": "add to sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        656,
+        80
+      ],
+      "id": "f273780f-2613-4d1c-ab57-c1adea77ac1e",
+      "name": "wait",
+      "webhookId": "cb0fe7a8-de3f-40e5-a229-51ce61e25091"
+    }
+  ],
+  "connections": {
+    "trigger": {
+      "main": [
+        [
+          {
+            "node": "segmentConfig",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "segmentConfig": {
+      "main": [
+        [
+          {
+            "node": "leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "leads": {
+      "main": [
+        [
+          {
+            "node": "aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "aggregate": {
+      "main": [
+        [
+          {
+            "node": "search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "search": {
+      "main": [
+        [
+          {
+            "node": "parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parser": {
+      "main": [
+        [
+          {
+            "node": "aggregateLeads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "aggregateLeads": {
+      "main": [
+        [
+          {
+            "node": "qualifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "qualifier model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "qualifier",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "qualifier": {
+      "main": [
+        [
+          {
+            "node": "applyTiers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "applyTiers": {
+      "main": [
+        [
+          {
+            "node": "loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "loop": {
+      "main": [
+        [],
+        [
+          {
+            "node": "enrichIF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "enrichIF": {
+      "main": [
+        [
+          {
+            "node": "getPosts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "add to sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getPosts": {
+      "main": [
+        [
+          {
+            "node": "setPost",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "setPost": {
+      "main": [
+        [
+          {
+            "node": "add to sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "add to sheets": {
+      "main": [
+        [
+          {
+            "node": "wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wait": {
+      "main": [
+        [
+          {
+            "node": "loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

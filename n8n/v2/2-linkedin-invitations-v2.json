@@ -1,0 +1,1218 @@
+{
+  "name": "2. LinkedIn Invitations (v2)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -240,
+        176
+      ],
+      "id": "89ea1762-5d56-4fa2-9967-6de37fde8d03",
+      "name": "trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 346050210,
+          "mode": "list",
+          "cachedResultName": "2_INVITATIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=346050210"
+        },
+        "filtersUI": {
+          "values": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -460,
+        176
+      ],
+      "id": "cc978b61-ee0f-4c59-9f99-b9de5e0be9d6",
+      "name": "readInvites",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const invites = $('readInvites').all().map(i => i.json);\nconst now = new Date();\n// IST \"today\" string matching sheet format dd/MM/yy\nconst ist = new Date(now.getTime() + 5.5*3600*1000);\nconst pad = n => String(n).padStart(2,'0');\nconst todayStr = pad(ist.getUTCDate()) + '/' + pad(ist.getUTCMonth()+1) + '/' + String(ist.getUTCFullYear()).slice(-2);\nfunction within14(s){ if(!s) return false; const p=String(s).split(' ')[0].split('/'); if(p.length<3) return false; const d=new Date(2000+ +p[2], +p[1]-1, +p[0]); return (now-d)/(86400000) <= 14; }\nlet sent14=0, acc14=0, pending=0, sentToday=0;\nfor (const r of invites) {\n  const st = String(r.invite_status||'').toLowerCase();\n  if (within14(r.sent_at)) { sent14++; if (st==='accepted') acc14++; }\n  if (st==='sent') pending++;\n  if (String(r.sent_at||'').startsWith(todayStr)) sentToday++;\n}\nconst acceptance = sent14 > 0 ? acc14/sent14 : 1;       // no signal yet -> allow\nconst istHour = ((now.getUTCHours() + now.getUTCMinutes()/60 + 5.5) % 24 + 24) % 24;\nconst inHours = istHour >= 7 && istHour < 22;\nconst killed = sent14 >= 20 && acceptance < 0.25;        // only trip with enough signal\nconst pendingBlock = pending >= 150;\nconst dailyDone = sentToday >= 20;\nif (!inHours || killed || pendingBlock || dailyDone) return []; // HALT this run\nreturn [{ json: { proceed:true, acceptancePct: Math.round(acceptance*100), pending, sentToday, remainingToday: Math.max(0, 20 - sentToday) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        176
+      ],
+      "id": "9a945ffd-65a7-4bb5-a233-daf886f50a87",
+      "name": "guards"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 559453142,
+          "mode": "list",
+          "cachedResultName": "1_LEADS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=559453142"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        176
+      ],
+      "id": "6c7151a4-8bf3-469e-bcb3-6d2b57a2a06f",
+      "name": "leads",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const offsets = { IN:5.5, AE:4, SA:3, QA:3, KW:3, OM:4, SG:8, UK:0, IE:0, NL:1, BE:1, SE:1, DK:1, NO:1, FI:2, AT:1, CH:1, DE:1, FR:1, US_ET:-5 };\nconst EU = ['UK','IE','NL','BE','SE','DK','NO','FI','AT','CH','DE','FR'];\nconst now = new Date();\nconst utc = now.getUTCHours() + now.getUTCMinutes()/60;\nconst m = now.getUTCMonth(); // 0=Jan\nconst isSummer = m >= 2 && m <= 9; // ~DST window (approx)\nconst out = [];\nfor (const it of $input.all()) {\n  let r = (it.json.region || 'IN').trim() || 'IN';\n  let off = offsets[r]; if (off === undefined) off = 5.5; // unknown -> founder IST morning\n  if (isSummer && (EU.includes(r) || r === 'US_ET')) off += 1;\n  const localAbs = utc + off;\n  const localHour = ((localAbs % 24) + 24) % 24;\n  let dow = now.getUTCDay(); // 0=Sun..6=Sat\n  if (localAbs >= 24) dow = (dow + 1) % 7; else if (localAbs < 0) dow = (dow + 6) % 7;\n  const weekday = dow >= 1 && dow <= 5;\n  if (weekday && localHour >= 9 && localHour < 11.5) out.push(it);\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        176
+      ],
+      "id": "94766b9e-dea0-4c89-907f-05a67a157edd",
+      "name": "windowFilter"
+    },
+    {
+      "parameters": {
+        "maxItems": "={{ Math.max(0, Math.min(5, $('guards').first().json.remainingToday)) }}"
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        432,
+        176
+      ],
+      "id": "d90f0d88-d1d2-4e75-8bfa-ed52f726befb",
+      "name": "limiter"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        656,
+        176
+      ],
+      "id": "8bb14824-df62-4478-99ac-eb1cbafca5ef",
+      "name": "loop"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('loop').item.json;\nconst seg = String(lead.segment||'').toUpperCase();\nconst first = (String(lead.full_name||'').trim().split(/\\s+/)[0]) || 'there';\nconst hospital = String(lead.hospital_name||'').trim();\nconst templateSafe = String(lead.template_safe||'').toUpperCase() === 'TRUE' && !!hospital;\nconst topic = String(lead.topic||'').trim();\nconst lastPost = lead.last_post_date || '';\nfunction recentPoster(){ if(!lastPost) return false; const d=new Date(lastPost); if(isNaN(d)) return false; return (Date.now()-d)/(86400000) <= 60; }\nfunction clip(s){ s=(s||'').trim(); return s.length>300 ? s.slice(0,297).trim()+'...' : s; }\nlet note = '';\nif (seg === 'DOCTOR') {\n  if (recentPoster() && topic) note = `Hi Dr. ${first}, came across your posts on ${topic} — clear you actively explore new technology in practice, which I value as well. Thought it would be great to connect.`;\n} else { // CMO / CIO / ADMIN\n  if (templateSafe) {\n    note = (seg === 'CIO')\n      ? `Hi ${first} — came across ${hospital} while mapping hospitals investing in clinical AI. We build a clinical-AI layer that integrates over HL7 FHIR — no rip-and-replace. Thought it would be valuable to connect.`\n      : `Hi ${first} — came across ${hospital} while mapping hospitals investing in clinical AI. We build decision-support that runs alongside the existing EHR rather than replacing it. Thought it would be valuable to connect.`;\n  }\n}\nreturn [{ json: { ...lead, note_text: clip(note) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        96
+      ],
+      "id": "bad3dd67-fc63-4e2e-a154-d89ac4d0e331",
+      "name": "buildNote"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api33.unipile.com:16386/api/v1/users/invite",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "options": {},
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify( ($json.note_text && $json.note_text.length) ? { provider_id: $json.provider_id, account_id: 'u99JHDpwTMC9n8XdiLpm9g', message: $json.note_text } : { provider_id: $json.provider_id, account_id: 'u99JHDpwTMC9n8XdiLpm9g' } ) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        880,
+        96
+      ],
+      "id": "317ca7d6-29f3-499b-9889-408578b798de",
+      "name": "sent request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tavATpOIaLDw6WZ2",
+          "name": "Unipile"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 559453142,
+          "mode": "list",
+          "cachedResultName": "1_LEADS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=559453142"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "provider_id": "={{ $('loop').item.json.provider_id }}",
+            "status": "invited",
+            "notes": "Invitation Sent"
+          },
+          "matchingColumns": [
+            "provider_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "provider_id",
+              "displayName": "provider_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "public_identifier",
+              "displayName": "public_identifier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "headline",
+              "displayName": "headline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "profile_url",
+              "displayName": "profile_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "connection_degree",
+              "displayName": "connection_degree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "scraped_at",
+              "displayName": "scraped_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1104,
+        0
+      ],
+      "id": "c010637a-9834-447f-bec8-8191ca76aa2d",
+      "name": "update",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 346050210,
+          "mode": "list",
+          "cachedResultName": "2_INVITATIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=346050210"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "provider_id": "={{ $('loop').first().json.provider_id }}",
+            "lead_id": "={{ $('loop').first().json.lead_id }}",
+            "invite_id": "={{ $('sent request').first().json.invitation_id }}",
+            "full_name": "={{ $('loop').first().json.full_name }}",
+            "sent_at": "={{ $now.format('dd/MM/yy hh:mm') }}",
+            "invite_status": "sent",
+            "ice_breaker_text": "={{ $('buildNote').first().json.note_text }}",
+            "segment": "={{ $('loop').first().json.segment }}"
+          },
+          "matchingColumns": [
+            "provider_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "provider_id",
+              "displayName": "provider_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "invite_id",
+              "displayName": "invite_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "ice_breaker_text",
+              "displayName": "ice_breaker_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "invite_status",
+              "displayName": "invite_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "accepted_at",
+              "displayName": "accepted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "error_detail",
+              "displayName": "error_detail",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1328,
+        0
+      ],
+      "id": "71879574-45e9-4f13-8198-b0f45f7dacae",
+      "name": "log invite",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (540 - 240 + 1)) + 240 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1552,
+        176
+      ],
+      "id": "67586bf0-c688-4f6d-92ff-45688f691f25",
+      "name": "wait",
+      "webhookId": "bba90a90-89cb-4885-bf5d-93416e87000f"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Access all incoming items from the previous node\nconst items = $input.all();\nconst results = [];\n\nconst prefix = 'ERR-';\nconst characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';\n\n// Loop through each incoming item\nfor (const item of items) {\n  // 1. Generate the 6-character random string for this item\n  let randomString = '';\n  for (let i = 0; i < 6; i++) {\n    const randomIndex = Math.floor(Math.random() * characters.length);\n    randomString += characters[randomIndex];\n  }\n  const finalErrorId = prefix + randomString;\n\n  // 2. Capture all the existing data from the previous node\n  // If item.json exists, we grab it. Otherwise, we default to an empty object.\n  const previousData = item.json || {};\n\n  // 3. Combine the new error ID with the previous details and add it to results\n  results.push({\n    json: {\n      errorId: finalErrorId,\n      ...previousData // The spread operator (...) copies all existing fields over\n    }\n  });\n}\n\n// Return the properly formatted array of objects for n8n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        192
+      ],
+      "id": "cd2c63ea-9391-4d69-8478-b87956e355a9",
+      "name": "error_id"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 824198297,
+          "mode": "list",
+          "cachedResultName": "6_ERRORS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=824198297"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "workflow": "={{ $workflow.name }}",
+            "occurred_at": "={{ $now.format('dd/MM/yy hh:mm') }}",
+            "error_code": "={{ $json.error.status }}",
+            "lead_id": "={{ $json.lead_id }}",
+            "error_message": "={{ $json.error.message }}",
+            "error_id": "={{ $json.errorId }}",
+            "resolved": "FALSE"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "error_id",
+              "displayName": "error_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "workflow",
+              "displayName": "workflow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_code",
+              "displayName": "error_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "occurred_at",
+              "displayName": "occurred_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "retry_at",
+              "displayName": "retry_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "retry_count",
+              "displayName": "retry_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "max_retries",
+              "displayName": "max_retries",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "resolved",
+              "displayName": "resolved",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "resolved_at",
+              "displayName": "resolved_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "action_taken",
+              "displayName": "action_taken",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1328,
+        192
+      ],
+      "id": "2f6ac0ce-5d5e-4c58-b445-72e026ed30e8",
+      "name": "error log",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -460,
+        540
+      ],
+      "id": "145698b4-7424-4764-a4f6-304c05ca498e",
+      "name": "withdrawTrigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 346050210,
+          "mode": "list",
+          "cachedResultName": "2_INVITATIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=346050210"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "invite_status",
+              "lookupValue": "sent"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -240,
+        540
+      ],
+      "id": "84adaf12-0853-489b-a0b7-b5ebd870a55a",
+      "name": "readExpired",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nfunction ageDays(s){ if(!s) return 0; const p=String(s).split(' ')[0].split('/'); if(p.length<3) return 0; const d=new Date(2000+ +p[2], +p[1]-1, +p[0]); return (now-d)/(86400000); }\nreturn $input.all().filter(it => ageDays(it.json.sent_at) > 21);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        540
+      ],
+      "id": "841efaf2-6b19-43ba-ae2a-5816b39a348b",
+      "name": "filterOld"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        200,
+        540
+      ],
+      "id": "698af5b9-d6df-4b19-ad2f-3661d342aa62",
+      "name": "loopW"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://api33.unipile.com:16386/api/v1/users/{{ $('loopW').item.json.provider_id }}/invitations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "account_id",
+              "value": "u99JHDpwTMC9n8XdiLpm9g"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        420,
+        460
+      ],
+      "id": "d7c737fa-9889-4eec-8deb-edcd5667ada3",
+      "name": "withdrawCall",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tavATpOIaLDw6WZ2",
+          "name": "Unipile"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 346050210,
+          "mode": "list",
+          "cachedResultName": "2_INVITATIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=346050210"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "provider_id": "={{ $('loopW').item.json.provider_id }}",
+            "invite_status": "expired"
+          },
+          "matchingColumns": [
+            "provider_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "provider_id",
+              "displayName": "provider_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "invite_id",
+              "displayName": "invite_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "invite_status",
+              "displayName": "invite_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "accepted_at",
+              "displayName": "accepted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        640,
+        460
+      ],
+      "id": "0fd2256b-457e-4282-91b7-09f870435572",
+      "name": "markExpired",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 30) + 15 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        860,
+        540
+      ],
+      "id": "43c0089c-3015-4a3e-aeae-c1c9be24af5b",
+      "name": "waitW",
+      "webhookId": "6e1c2ccb-3e76-4f7f-b7ce-36c57f0e1fbd"
+    }
+  ],
+  "connections": {
+    "trigger": {
+      "main": [
+        [
+          {
+            "node": "readInvites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "readInvites": {
+      "main": [
+        [
+          {
+            "node": "guards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "guards": {
+      "main": [
+        [
+          {
+            "node": "leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "leads": {
+      "main": [
+        [
+          {
+            "node": "windowFilter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "windowFilter": {
+      "main": [
+        [
+          {
+            "node": "limiter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "limiter": {
+      "main": [
+        [
+          {
+            "node": "loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "loop": {
+      "main": [
+        [],
+        [
+          {
+            "node": "buildNote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buildNote": {
+      "main": [
+        [
+          {
+            "node": "sent request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sent request": {
+      "main": [
+        [
+          {
+            "node": "update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "error_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update": {
+      "main": [
+        [
+          {
+            "node": "log invite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "log invite": {
+      "main": [
+        [
+          {
+            "node": "wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wait": {
+      "main": [
+        [
+          {
+            "node": "loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "error_id": {
+      "main": [
+        [
+          {
+            "node": "error log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "error log": {
+      "main": [
+        [
+          {
+            "node": "loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "withdrawTrigger": {
+      "main": [
+        [
+          {
+            "node": "readExpired",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "readExpired": {
+      "main": [
+        [
+          {
+            "node": "filterOld",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "filterOld": {
+      "main": [
+        [
+          {
+            "node": "loopW",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "loopW": {
+      "main": [
+        [],
+        [
+          {
+            "node": "withdrawCall",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "withdrawCall": {
+      "main": [
+        [
+          {
+            "node": "markExpired",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "markExpired": {
+      "main": [
+        [
+          {
+            "node": "waitW",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "waitW": {
+      "main": [
+        [
+          {
+            "node": "loopW",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

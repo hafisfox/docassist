@@ -1,0 +1,1469 @@
+{
+  "name": "3. LinkedIn New Connection (v2)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new_relation_v2",
+        "options": {}
+      },
+      "id": "e6560739-60b6-4029-88ec-464fcec07da2",
+      "name": "trigger",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        224,
+        -144
+      ],
+      "webhookId": "18daad76-72e8-4a49-a96c-ecc38b341758",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5483f235-49d0-404d-82dd-fd5688671044",
+              "name": "full_name",
+              "type": "string",
+              "value": "={{ $json.body.user_full_name }}"
+            },
+            {
+              "id": "d737da4a-cc6f-4dc5-a8b7-0fd60f6a45b5",
+              "name": "provider_id",
+              "type": "string",
+              "value": "={{ $json.body.user_provider_id }}"
+            },
+            {
+              "id": "924bd124-4ef1-4f41-8a3d-819d97f053e2",
+              "name": "public_identifier",
+              "type": "string",
+              "value": "={{ $json.body.user_public_identifier }}"
+            },
+            {
+              "id": "c05786b0-b2af-4d87-a111-aae969ce50e9",
+              "name": "profile_url",
+              "type": "string",
+              "value": "={{ $json.body.user_profile_url }}"
+            },
+            {
+              "id": "342fd20c-81be-42c7-aa85-a525fa9760fb",
+              "name": "account_id",
+              "type": "string",
+              "value": "={{ $json.body.account_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "72224634-100a-499c-b4af-6b73b3fef14a",
+      "name": "global",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        672,
+        -144
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 559453142,
+          "mode": "list",
+          "cachedResultName": "1_LEADS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=559453142"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "provider_id": "={{ $json.provider_id }}",
+            "status": "connected",
+            "notes": "Invitation Accepted",
+            "profile_url": "={{ $json.profile_url }}"
+          },
+          "matchingColumns": [
+            "provider_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "provider_id",
+              "displayName": "provider_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "public_identifier",
+              "displayName": "public_identifier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "headline",
+              "displayName": "headline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "profile_url",
+              "displayName": "profile_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connection_degree",
+              "displayName": "connection_degree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "scraped_at",
+              "displayName": "scraped_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        896,
+        -144
+      ],
+      "id": "f6c62738-a89c-4736-9b2c-3e7dda25068b",
+      "name": "update_1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 346050210,
+          "mode": "list",
+          "cachedResultName": "2_INVITATIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=346050210"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "provider_id": "={{ $json.provider_id }}",
+            "invite_status": "accepted",
+            "accepted_at": "={{ $now.format('dd/MM/yy hh:mm') }}"
+          },
+          "matchingColumns": [
+            "provider_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "provider_id",
+              "displayName": "provider_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "invite_id",
+              "displayName": "invite_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "ice_breaker_text",
+              "displayName": "ice_breaker_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "invite_status",
+              "displayName": "invite_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "accepted_at",
+              "displayName": "accepted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_detail",
+              "displayName": "error_detail",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1120,
+        -144
+      ],
+      "id": "0cdc2e21-7b75-49b1-8299-a22b6aba0129",
+      "name": "update_2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api33.unipile.com:16386/api/v1/users/{{ $('global').item.json.provider_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "linkedin_api",
+              "value": "sales_navigator"
+            },
+            {
+              "name": "notify",
+              "value": "false"
+            },
+            {
+              "name": "account_id",
+              "value": "={{ $('global').first().json.account_id }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        -144
+      ],
+      "id": "669e894b-8bc9-4086-b646-f0063691dbe4",
+      "name": "get profile",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tavATpOIaLDw6WZ2",
+          "name": "Unipile"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 559453142,
+          "mode": "list",
+          "cachedResultName": "1_LEADS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=559453142"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "provider_id",
+              "lookupValue": "={{ $('global').first().json.provider_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1568,
+        -144
+      ],
+      "id": "ca1ab09c-1dd2-4bfe-9b35-3c7410a1a7cd",
+      "name": "lookupLead",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1948596804,
+          "mode": "list",
+          "cachedResultName": "3_CONNECTIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=1948596804"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "provider_id": "={{ $('global').first().json.provider_id }}",
+            "full_name": "={{ $('global').first().json.full_name }}",
+            "segment": "={{ $('lookupLead').first().json.segment }}",
+            "region": "={{ $('lookupLead').first().json.region }}",
+            "hospital_name": "={{ $('get profile').first().json.work_experience?.[0]?.company || $('lookupLead').first().json.hospital_name || '' }}",
+            "connected_at": "={{ $('update_2').first().json.accepted_at }}",
+            "stage": "connected",
+            "warmth": "COLD",
+            "sequence_step": "0",
+            "message_count": "0",
+            "next_touch_at": "={{ $now.plus({ hours: 24 + Math.floor(Math.random() * 24) }).toFormat('yyyy-MM-dd HH:mm') }}",
+            "last_message_at": ""
+          },
+          "matchingColumns": [
+            "provider_id"
+          ],
+          "schema": [
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "provider_id",
+              "displayName": "provider_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "connected_at",
+              "displayName": "connected_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "welcome_sent_at",
+              "displayName": "welcome_sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "warmth",
+              "displayName": "warmth",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "last_message_at",
+              "displayName": "last_message_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "message_count",
+              "displayName": "message_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "region",
+              "displayName": "region",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hospital_name",
+              "displayName": "hospital_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sequence_step",
+              "displayName": "sequence_step",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "next_touch_at",
+              "displayName": "next_touch_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "last_inbound_at",
+              "displayName": "last_inbound_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1792,
+        -144
+      ],
+      "id": "a411e75d-47b9-434c-a38c-ae7fd2c4329b",
+      "name": "initConn",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        320
+      ],
+      "id": "ef68ee76-e762-4da7-ba23-3f99e4b73497",
+      "name": "seqTrigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1948596804,
+          "mode": "list",
+          "cachedResultName": "3_CONNECTIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=1948596804"
+        },
+        "filtersUI": {
+          "values": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        320
+      ],
+      "id": "3c7cb985-8e3e-4ece-8ca7-5435c92c4881",
+      "name": "readConn",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "rows",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        672,
+        320
+      ],
+      "id": "881ad8e0-ba14-4162-9202-83ee55910425",
+      "name": "aggConn"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 897669432,
+          "mode": "list",
+          "cachedResultName": "4_CONVERSATIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=897669432"
+        },
+        "filtersUI": {
+          "values": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        896,
+        320
+      ],
+      "id": "93646dc8-6202-4a32-84bd-03c4b6d4f49d",
+      "name": "readConvos",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const conns = $('readConn').all().map(i => i.json);\nconst convos = $('readConvos').all().map(i => i.json);\nconst replied = new Set();\nfor (const c of convos) { if (String(c.direction||'').toLowerCase() === 'inbound' && c.chat_id) replied.add(String(c.chat_id)); }\n\n// ===== HANDOFF PARAMS — set real values at cutover =====\nconst OVERVIEW_LINK = 'https://doctorassist.ai/';\nconst CALENDLY_20MIN = 'https://calendly.com/hello-doctorassist/20min';\nconst DOCTOR_TRYLINK = 'https://calendly.com/hello-doctorassist/20min';\n\nconst offsets = { IN:5.5, AE:4, SA:3, QA:3, KW:3, OM:4, SG:8, UK:0, IE:0, NL:1, BE:1, SE:1, DK:1, NO:1, FI:2, AT:1, CH:1, DE:1, FR:1, US_ET:-5 };\nconst EU = ['UK','IE','NL','BE','SE','DK','NO','FI','AT','CH','DE','FR'];\nconst now = new Date();\nfunction inWindow(region){\n  let r = (region||'IN').trim() || 'IN';\n  let off = offsets[r]; if (off === undefined) off = 5.5;\n  const mo = now.getUTCMonth(); const summer = mo>=2 && mo<=9;\n  if (summer && (EU.includes(r) || r==='US_ET')) off += 1;\n  const utc = now.getUTCHours() + now.getUTCMinutes()/60;\n  const localAbs = utc + off; const lh = ((localAbs%24)+24)%24;\n  let dow = now.getUTCDay(); if (localAbs>=24) dow=(dow+1)%7; else if (localAbs<0) dow=(dow+6)%7;\n  return dow>=1 && dow<=5 && lh>=9 && lh<11.5;\n}\nfunction parseDate(s){ if(!s) return null; s=String(s).trim();\n  let m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})[ T](\\d{2}):(\\d{2})/); if(m) return new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);\n  m = s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{2})[ ](\\d{2}):(\\d{2})/); if(m) return new Date(2000+ +m[3],+m[2]-1,+m[1],+m[4],+m[5]);\n  const d=new Date(s); return isNaN(d)?null:d;\n}\nfunction fmt(d){ const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }\n\nfunction messageFor(seg, step, f){\n  if (seg === 'DOCTOR'){\n    if (step===1) return `Appreciate you connecting, Dr. ${f}. No pitch — I mostly share what we're learning building clinical decision-support (risk patterns, drug-interaction intercepts, documentation). If any of it's useful in your practice, that's the point.`;\n    if (step===2) return `Sharing one piece clinicians have found genuinely useful: ${OVERVIEW_LINK}. Curious what you make of it — does it match what you see in practice?`;\n    if (step===3) return `Honest ask, Dr. ${f}: the fastest way to judge a clinical AI is to throw a real (de-identified) case at it. DoctorAssist is free for verified physicians — run one case from this week's clinic and I'd value hearing exactly where it fell short: ${DOCTOR_TRYLINK}`;\n    return null;\n  }\n  if (step===1) return `Thanks for connecting, ${f}. Quick context so I'm not a mystery: DoctorAssist is a clinical decision-support layer hospitals run alongside their EHR — risk-pattern surveillance, drug-interaction intercepts at order entry, documentation. If clinical variation or alert fatigue is on this year's agenda, happy to send a 2-page overview written for clinical leadership. Useful?`;\n  if (step===2) return `Sharing the short overview I mentioned — 2 pages, written for clinical leadership rather than IT: ${OVERVIEW_LINK}. Page 2 covers deployment alongside Epic/Cerner-class EHRs and data handling. If it raises questions, I'd rather answer them directly than let the deck guess.`;\n  if (step===3) return `If the overview resonated, the fastest next step is a 20-minute walkthrough on a live (de-identified) case — I'll be on the call myself, no sales handoff. Grab whatever slot suits: ${CALENDLY_20MIN} — or tell me a time and I'll work around you.`;\n  if (step===4) return `Last note from me, ${f} — I'll stop adding to your inbox. We publish what we're learning about clinical-AI deployment on my profile; if the timing turns right on your side, the door's open.`;\n  return null;\n}\n\nconst nowMs = now.getTime();\nconst out = [];\nfor (const c of conns){\n  const stage = String(c.stage||'').toUpperCase();\n  if (['INTERESTED','BOOKED_OR_DETAILS_SHARED','REPLIED','DONE','EXITED'].includes(stage)) continue; // handed to WF4 / finished\n  if (c.chat_id && replied.has(String(c.chat_id))) continue; // prospect replied -> halt sequence\n  const seg = String(c.segment||'').toUpperCase();\n  const isDoc = seg === 'DOCTOR';\n  const maxStep = isDoc ? 3 : 4;\n  const step = parseInt(c.sequence_step||'0',10) || 0;\n  if (step >= maxStep) continue;\n  const due = parseDate(c.next_touch_at);\n  if (!due || due.getTime() > nowMs) continue;       // not due yet\n  if (!inWindow(c.region)) continue;                  // outside recipient's local window\n  const nextStep = step + 1;\n  const f = (String(c.full_name||'').trim().split(/\\s+/)[0]) || 'there';\n  const text = messageFor(seg, nextStep, f);\n  if (!text) continue;\n  const gaps = isDoc ? {1:5,2:6} : {1:5,2:6,3:9};\n  let nextTouch = '';\n  if (gaps[nextStep]) nextTouch = fmt(new Date(nowMs + gaps[nextStep]*86400000));\n  out.push({ json: { provider_id:c.provider_id, full_name:c.full_name, chat_id:c.chat_id||'', segment:seg, region:c.region||'', _send_text:text, _next_step:String(nextStep), _next_touch_at:nextTouch } });\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        320
+      ],
+      "id": "4a3e1608-e805-413d-ae03-8abc26cdd072",
+      "name": "pickDue"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1344,
+        320
+      ],
+      "id": "473ae8fa-2f44-4de2-904c-4a59b80ec93c",
+      "name": "loopS"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cfbe9588-5e54-4abb-87aa-0eeca0a3fe96",
+              "leftValue": "={{ $('loopS').item.json.chat_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        320
+      ],
+      "id": "4af541bf-5b46-4e43-a563-4b113fe87218",
+      "name": "chatIF"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api33.unipile.com:16386/api/v1/chats/{{ $('loopS').item.json.chat_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $('loopS').item.json._send_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1792,
+        220
+      ],
+      "id": "d3b907b2-339d-4706-ab0f-ac8f66f68830",
+      "name": "sendExisting",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tavATpOIaLDw6WZ2",
+          "name": "Unipile"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api33.unipile.com:16386/api/v1/chats",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "attendees_ids",
+              "value": "={{ $('loopS').item.json.provider_id }}"
+            },
+            {
+              "name": "account_id",
+              "value": "u99JHDpwTMC9n8XdiLpm9g"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('loopS').item.json._send_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1792,
+        420
+      ],
+      "id": "9c37475d-8875-40e2-b700-36ddfc355bf0",
+      "name": "sendNew",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tavATpOIaLDw6WZ2",
+          "name": "Unipile"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1948596804,
+          "mode": "list",
+          "cachedResultName": "3_CONNECTIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=1948596804"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "provider_id": "={{ $('loopS').item.json.provider_id }}",
+            "chat_id": "={{ $json.chat_id || $('loopS').item.json.chat_id }}",
+            "sequence_step": "={{ $('loopS').item.json._next_step }}",
+            "next_touch_at": "={{ $('loopS').item.json._next_touch_at }}",
+            "last_message_at": "={{ $now.format('yyyy-MM-dd HH:mm') }}",
+            "stage": "nurturing"
+          },
+          "matchingColumns": [
+            "provider_id"
+          ],
+          "schema": [
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "provider_id",
+              "displayName": "provider_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connected_at",
+              "displayName": "connected_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "warmth",
+              "displayName": "warmth",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_message_at",
+              "displayName": "last_message_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "message_count",
+              "displayName": "message_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "region",
+              "displayName": "region",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "hospital_name",
+              "displayName": "hospital_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sequence_step",
+              "displayName": "sequence_step",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "next_touch_at",
+              "displayName": "next_touch_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "last_inbound_at",
+              "displayName": "last_inbound_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2016,
+        320
+      ],
+      "id": "7ba1a134-bad5-41d9-b4d9-8f4609823292",
+      "name": "updateConn",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 897669432,
+          "mode": "list",
+          "cachedResultName": "4_CONVERSATIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=897669432"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ $json.chat_id || $('loopS').item.json.chat_id }}",
+            "direction": "outbound",
+            "sender_name": "={{ $('loopS').item.json.full_name }}",
+            "message_text": "={{ $('loopS').item.json._send_text }}",
+            "timestamp": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "direction",
+              "displayName": "direction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sender_name",
+              "displayName": "sender_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "message_text",
+              "displayName": "message_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "warmth_score",
+              "displayName": "warmth_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2240,
+        320
+      ],
+      "id": "9ba5a54e-2d53-4025-8d08-1009d8d45dbb",
+      "name": "logOut",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 90) + 30 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2464,
+        320
+      ],
+      "id": "e708431b-e093-4c12-979e-2a6f53503a1d",
+      "name": "waitS",
+      "webhookId": "c92c3a93-a770-4bd5-ba7b-44397e68aa98"
+    }
+  ],
+  "connections": {
+    "trigger": {
+      "main": [
+        [
+          {
+            "node": "global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "global": {
+      "main": [
+        [
+          {
+            "node": "update_1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_1": {
+      "main": [
+        [
+          {
+            "node": "update_2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_2": {
+      "main": [
+        [
+          {
+            "node": "get profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get profile": {
+      "main": [
+        [
+          {
+            "node": "lookupLead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "lookupLead": {
+      "main": [
+        [
+          {
+            "node": "initConn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "seqTrigger": {
+      "main": [
+        [
+          {
+            "node": "readConn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "readConn": {
+      "main": [
+        [
+          {
+            "node": "aggConn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "aggConn": {
+      "main": [
+        [
+          {
+            "node": "readConvos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "readConvos": {
+      "main": [
+        [
+          {
+            "node": "pickDue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pickDue": {
+      "main": [
+        [
+          {
+            "node": "loopS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "loopS": {
+      "main": [
+        [],
+        [
+          {
+            "node": "chatIF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "chatIF": {
+      "main": [
+        [
+          {
+            "node": "sendExisting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "sendNew",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sendExisting": {
+      "main": [
+        [
+          {
+            "node": "updateConn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sendNew": {
+      "main": [
+        [
+          {
+            "node": "updateConn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "updateConn": {
+      "main": [
+        [
+          {
+            "node": "logOut",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "logOut": {
+      "main": [
+        [
+          {
+            "node": "waitS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "waitS": {
+      "main": [
+        [
+          {
+            "node": "loopS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
