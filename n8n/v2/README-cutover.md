@@ -18,11 +18,13 @@ The JSON of each v2 workflow is in this folder. Decisions baked in (per your ans
 ---
 
 ## STEP 1 — Add columns to the existing Google Sheet (`DocAssist_LinkedIn_DB`)
+> ✅ **DONE 2026-06-22** — all columns below were added to the live sheet (`1_LEADS` L–T, `2_INVITATIONS` J, `3_CONNECTIONS` N–T). See the "Reply timing & human-handoff" section for details.
+
 v1 ignores unknown columns, so adding these is safe while v1 runs. Add them as new header cells:
 
 - **`1_LEADS`** → `hospital_name`, `segment`, `region`, `country`, `search_name`, `last_post_date`, `topic`, `tier`, `template_safe`
 - **`2_INVITATIONS`** → `segment` (v2 also writes the note into the existing `ice_breaker_text`)
-- **`3_CONNECTIONS`** → `segment`, `region`, `hospital_name`, `sequence_step`, `next_touch_at`, `last_inbound_at`
+- **`3_CONNECTIONS`** → `segment`, `region`, `hospital_name`, `sequence_step`, `next_touch_at`, `last_inbound_at`, **`bot_paused`** (new — human-handoff flag; `calendly_link_sent` already exists from v1 and is now actively written)
 - **`4_CONVERSATIONS`** → (no new columns required)
 
 ## STEP 2 — Fill in the placeholders
@@ -118,6 +120,43 @@ make that refactor in n8n, then restore the WF2 `editableParams` in
 
 ---
 
+## Reply timing & human-handoff (added 2026-06-22)
+
+> **Status — APPLIED to live n8n 2026-06-22** (surgical `update_workflow` ops; emitter/run-now nodes preserved). Both live WF3 (`Mu9azPqONf6AJuLF`) and WF4 (`0T4qsQoAhlW7Q1VQ`) carry the new logic; both remain **inactive** pre-cutover.
+> - **STEP 1 columns added to the live sheet (all tabs done 2026-06-22):** `3_CONNECTIONS` cols N–T (`segment, region, hospital_name, sequence_step, next_touch_at, last_inbound_at, bot_paused`); `1_LEADS` cols L–T (`hospital_name, segment, region, country, search_name, last_post_date, topic, tier, template_safe`); `2_INVITATIONS` col J (`segment`). All three tabs previously had **none** of the v2 columns. (n8n's Sheets node throws `checkForSchemaChanges` — "Missing columns: X" — rather than auto-creating them, so they had to be pre-added.)
+> - **One manual step left:** WF4 `fetchLatest` needs its credential set in the UI — Authentication → Generic Credential Type → **Header Auth → Unipile**. (The n8n API/MCP can't attach generic header-auth to an httpRequest node.) It's fail-soft (`onError: continueRegularOutput`), so until set, the team-reply guard is bypassed but the 1h wait + Calendly handoff still work.
+
+
+
+Three rules, all driven off two `3_CONNECTIONS` columns — `bot_paused` (TRUE/blank) and
+`calendly_link_sent` (timestamp/blank):
+
+1. **Wait 1 hour before any auto-reply.** WF4's `wait` node is now `1 hour` (was a
+   10–30 **second** human-jitter delay). This gives the team a full hour to answer first.
+2. **If the team already replied manually, the bot stays quiet.** After the hour, WF4
+   `fetchLatest` pulls the chat's latest messages from Unipile; `replyGate` skips the
+   auto-reply if the **newest message is from our own account** (`is_sender` truthy =
+   a teammate already answered during the hour). This is **per-message** (the bot is a
+   fallback for when the team is busy), and it also makes WF4 idempotent against
+   duplicate webhook deliveries. To silence the bot **permanently** on a thread, set
+   `bot_paused = TRUE` in the sheet (the team can do this by hand anytime).
+3. **Once a Calendly link is sent, the bot backs off for good — human takes over.**
+   - WF4: when the agent's outgoing reply contains `calendly`, `calendlyIF → markHandoff`
+     stamps `calendly_link_sent` and sets `bot_paused = TRUE`.
+   - WF3: when the decision-maker step-3 (walkthrough) touch sends `CALENDLY_20MIN`,
+     `updateConn` stamps `calendly_link_sent`, sets `bot_paused = TRUE`, `stage = INTERESTED`,
+     and clears `next_touch_at` (so step-4 graceful-exit never fires).
+   - Both WF3 `pickDue` and WF4 `replyGate` skip any connection where `bot_paused` is set
+     **or** `calendly_link_sent` is non-empty.
+
+> **Failure mode:** if the `fetchLatest` Unipile call fails it's treated as "no team
+> reply" and the bot proceeds (favours responsiveness over a rare double-reply). The
+> `bot_paused` / `calendly_link_sent` checks are unaffected since they read the sheet.
+>
+> **Doctor segment:** handoff is scoped to decision-makers only (`!isDoc`), so a doctor
+> receiving their self-serve try-link is **not** treated as a human handoff — even while
+> the `DOCTOR_TRYLINK` placeholder still points at the Calendly URL.
+
 ## What changed, per workflow
 
 ### WF1 — Scraper → Segmented Prospector
@@ -135,12 +174,14 @@ make that refactor in n8n, then restore the WF2 `editableParams` in
 ### WF3 — New Connection → Per-Segment Nurture Sequencer
 - **Path A (webhook `new_relation_v2`):** updates `1_LEADS`/`2_INVITATIONS`, enriches the profile, and **opens a sequence** in `3_CONNECTIONS` (`sequence_step=0`, `next_touch_at = +24–48h`). **The truncated instant DM is gone.**
 - **Path B (hourly `seqTrigger`):** sends the next due touch per **segment + step** from the v2 message library, advances the step, schedules the next touch, respects the local send window, and **halts on any inbound** reply (checked against `4_CONVERSATIONS`). Decision-makers: T1 intro → T2 deck → T3 20-min walkthrough → T4 graceful exit. Doctors: T1 no-pitch → T2 asset → T3 free access. First touch creates the chat (`POST /chats`); later touches reuse `chat_id`.
+- **Handoff (2026-06-22):** `pickDue` now also skips any connection with `bot_paused` set or `calendly_link_sent` filled; the decision-maker **T3 (Calendly) touch** sets both flags (+ `stage=INTERESTED`, clears `next_touch_at`) via `updateConn`, so the sequence stops at the booking link and a human owns it from there.
 
 ### WF4 — DM Agent → Segment-Briefed Closer
 - Model upgraded to **`anthropic/claude-sonnet-4-6`**.
 - **`readConnAll`→`pickSeg`** injects the lead's **segment** into the agent (no more occupation-guessing).
 - System prompt rewritten: **no phone ask, no proactive email ask**; doctors → **free verified access** (no "limited period", no call unless asked); decision-makers → qualify + 20-min walkthrough. Stage enum unified.
 - **`warmthIF`→`alertEmail`** sends a deterministic founder alert on every WARM/HOT (plus the agent's existing `email_received` tool). Auto-send retained (no approval gate, per your choice). Memory, self-check, structured parser, and conversation logging kept.
+- **Reply timing & handoff (2026-06-22):** `wait` is now **1 hour**; new `fetchLatest`→`replyGate`→`gateIF` chain skips the auto-reply if the team replied during the hour or the thread is `bot_paused`/`calendly_link_sent`; new `calendlyIF`→`markHandoff` sets those flags when the agent's reply includes a Calendly link. `global` now also captures `account_id`. See **Reply timing & human-handoff** above.
 
 ---
 

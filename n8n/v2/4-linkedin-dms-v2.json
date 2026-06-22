@@ -77,6 +77,12 @@
               "name": "occupation",
               "value": "={{ $json.body.sender.attendee_specifics?.occupation || 'Not specified' }}",
               "type": "string"
+            },
+            {
+              "id": "b1f7c2a0-0006-4a01-9001-aaaa00000006",
+              "name": "account_id",
+              "value": "={{ $json.body.account_id }}",
+              "type": "string"
             }
           ]
         },
@@ -126,7 +132,8 @@
     },
     {
       "parameters": {
-        "amount": "={{ Math.floor(Math.random() * 21) + 10 }}"
+        "amount": 1,
+        "unit": "hours"
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
@@ -176,7 +183,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const g = $('global').first().json;\nconst chatId = String(g.chat_id || '');\nlet segment = 'UNKNOWN', region = '';\nfor (const it of $('readConnAll').all()) {\n  if (String(it.json.chat_id || '') === chatId) { segment = it.json.segment || 'UNKNOWN'; region = it.json.region || ''; break; }\n}\nreturn [{ json: { ...g, segment, region } }];"
+        "jsCode": "const g = $('global').first().json;\nconst chatId = String(g.chat_id || '');\nlet segment = 'UNKNOWN', region = '', calendly_link_sent = '', bot_paused = '', stage = '';\nfor (const it of $('readConnAll').all()) {\n  if (String(it.json.chat_id || '') === chatId) {\n    segment = it.json.segment || 'UNKNOWN';\n    region = it.json.region || '';\n    calendly_link_sent = it.json.calendly_link_sent || '';\n    bot_paused = it.json.bot_paused || '';\n    stage = it.json.stage || '';\n    break;\n  }\n}\nreturn [{ json: { ...g, segment, region, calendly_link_sent, bot_paused, stage } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -804,6 +811,311 @@
         }
       },
       "webhookId": "8c038a7e-49f6-4c80-a26e-fb12ddb48b1f"
+    },
+    {
+      "parameters": {
+        "url": "=https://api33.unipile.com:16386/api/v1/chats/{{ $json.chat_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "10"
+            },
+            {
+              "name": "account_id",
+              "value": "={{ $json.account_id }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -180,
+        320
+      ],
+      "id": "b1f7c2a0-0001-4a01-9001-aaaa00000001",
+      "name": "fetchLatest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tavATpOIaLDw6WZ2",
+          "name": "Unipile"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decide whether the bot should auto-reply, after the 1h cooling-off wait.\n// Skip if: the conversation was handed off (Calendly already sent / manually paused),\n// or the team already replied manually during the wait window.\nconst p = $('pickSeg').first().json;\n\nconst botPausedRaw = String(p.bot_paused || '').trim().toLowerCase();\nconst isPaused = ['true', 'yes', '1', 'y', 'paused'].includes(botPausedRaw);\nconst calendlySent = String(p.calendly_link_sent || '').trim() !== '';\n\n// Did anyone on OUR side send a message during the wait? If the newest message in\n// the chat is from our account (is_sender truthy), a teammate (or an earlier run)\n// already handled it -> stay quiet.\nlet teamReplied = false;\ntry {\n  const resp = $('fetchLatest').first().json;\n  let items = resp.items || resp.messages || resp.data || [];\n  if (!Array.isArray(items) && Array.isArray(resp)) items = resp;\n  if (Array.isArray(items) && items.length) {\n    const sorted = [...items].sort((a, b) => new Date(b.timestamp || b.date || 0) - new Date(a.timestamp || a.date || 0));\n    const flag = sorted[0].is_sender;\n    teamReplied = (flag === 1 || flag === true || flag === '1');\n  }\n} catch (e) {\n  teamReplied = false; // fetch failed -> don't block the reply\n}\n\nconst shouldReply = !isPaused && !calendlySent && !teamReplied;\nconst skip_reason = isPaused ? 'bot_paused'\n  : calendlySent ? 'calendly_already_sent'\n  : teamReplied ? 'team_replied_manually'\n  : '';\n\nreturn [{ json: { ...p, shouldReply, skip_reason } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        320
+      ],
+      "id": "b1f7c2a0-0002-4a01-9001-aaaa00000002",
+      "name": "replyGate"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b1f7c2a0-0003-cond-0001-000000000001",
+              "leftValue": "={{ $json.shouldReply }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        260,
+        320
+      ],
+      "id": "b1f7c2a0-0003-4a01-9001-aaaa00000003",
+      "name": "gateIF"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b1f7c2a0-0004-cond-0001-000000000001",
+              "leftValue": "={{ ($('message agent').first().json.output.message || '').toLowerCase() }}",
+              "rightValue": "calendly",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1392,
+        120
+      ],
+      "id": "b1f7c2a0-0004-4a01-9001-aaaa00000004",
+      "name": "calendlyIF"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1948596804,
+          "mode": "list",
+          "cachedResultName": "3_CONNECTIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=1948596804"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ $('global').first().json.chat_id }}",
+            "calendly_link_sent": "={{ $now.format('dd/MM/yy hh:mm') }}",
+            "bot_paused": "TRUE"
+          },
+          "matchingColumns": [
+            "chat_id"
+          ],
+          "schema": [
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calendly_link_sent",
+              "displayName": "calendly_link_sent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "bot_paused",
+              "displayName": "bot_paused",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1616,
+        120
+      ],
+      "id": "b1f7c2a0-0005-4a01-9001-aaaa00000005",
+      "name": "markHandoff",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ",
+          "mode": "list",
+          "cachedResultName": "DocAssist_LinkedIn_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 897669432,
+          "mode": "list",
+          "cachedResultName": "4_CONVERSATIONS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c72G0QneB-pNB0oaxo400JHVB8HT54xIrjqm7TsLRVQ/edit#gid=897669432"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ $('global').first().json.chat_id }}",
+            "message_id": "={{ $('global').first().json.message_id }}",
+            "direction": "inbound",
+            "sender_name": "={{ $('global').first().json.sender }}",
+            "message_text": "={{ $('global').first().json.message }}",
+            "timestamp": "={{ $now.format('dd/MM/yy hh:mm') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "direction",
+              "displayName": "direction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sender_name",
+              "displayName": "sender_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_text",
+              "displayName": "message_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        480,
+        440
+      ],
+      "id": "b1f7c2a0-0007-4a01-9001-aaaa00000007",
+      "name": "logSkippedInbound",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ebHMbSj12Isn21jh",
+          "name": "Google Sheets EVO"
+        }
+      }
     }
   ],
   "connections": {
@@ -884,7 +1196,47 @@
       "main": [
         [
           {
+            "node": "fetchLatest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fetchLatest": {
+      "main": [
+        [
+          {
+            "node": "replyGate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "replyGate": {
+      "main": [
+        [
+          {
+            "node": "gateIF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gateIF": {
+      "main": [
+        [
+          {
             "node": "message agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "logSkippedInbound",
             "type": "main",
             "index": 0
           }
@@ -975,8 +1327,25 @@
             "node": "warmthIF",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "calendlyIF",
+            "type": "main",
+            "index": 0
           }
         ]
+      ]
+    },
+    "calendlyIF": {
+      "main": [
+        [
+          {
+            "node": "markHandoff",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "warmthIF": {
