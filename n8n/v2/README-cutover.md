@@ -29,7 +29,7 @@ v1 ignores unknown columns, so adding these is safe while v1 runs. Add them as n
 
 ## STEP 2 — Fill in the placeholders
 - **WF1 → `segmentConfig` node:** split your 19-country geo IDs into `WAVE[1]/[2]/[3]` and set `ACTIVE_WAVE`. (Wave 1 currently = your existing 20 IDs; Waves 2 & 3 are empty.)
-- **WF3 → `pickDue` node** and anywhere `{{OVERVIEW_LINK}}` / `{{DOCTOR_TRYLINK}}` appears: set the real 2-page overview URL and the doctor "try a case" URL (with UTM). Confirm the **20-min** Calendly link `https://calendly.com/hello-doctorassist/20min` exists (v1 used `/15min`).
+- **WF3 → `pickDue` node** and anywhere `{{OVERVIEW_LINK}}` / `{{DOCTOR_TRYLINK}}` appears: set the real 2-page overview URL and the doctor "try a case" URL (with UTM). `OVERVIEW_LINK` is still the homepage and `DOCTOR_TRYLINK` still points at Calendly — set real values before activation. The Calendly slug was **standardized on `/15min`** across WF3 and WF4 on 2026-06-22 (see Audit section below); if you move to a 20-min event, update **both** WF3 `pickDue` (`CALENDLY_20MIN`/`DOCTOR_TRYLINK`) and the WF4 `message agent` system prompt.
 - **OpenRouter:** confirm the account can call `anthropic/claude-sonnet-4-6` (WF4 agent) and `anthropic/claude-haiku-4.5` (WF1 qualifier).
 
 ## STEP 3 — Test each v2 workflow while INACTIVE
@@ -157,6 +157,33 @@ Three rules, all driven off two `3_CONNECTIONS` columns — `bot_paused` (TRUE/b
 > receiving their self-serve try-link is **not** treated as a human handoff — even while
 > the `DOCTOR_TRYLINK` placeholder still points at the Calendly URL.
 
+## Audit & corrections (2026-06-22)
+
+A full audit of the four **live** workflows against the dashboard ingest handler
+(`src/app/api/webhooks/n8n/route.ts`) + registry (`src/lib/n8n/workflows.ts`) found the
+dashboard side correct (IDs, run-now paths, editable params, cutover guard, idempotent ingest)
+and four defects in the **n8n workflows**, all now fixed on live (workflows still inactive):
+
+| # | Workflow | Fix (applied to live via surgical `update_workflow`) |
+|---|---|---|
+| 1 | WF3 `Mu9azPqONf6AJuLF` | `emit sequence.touch_sent` was sending `text: $json.text`, but it fires off `updateConn` which has no `text` field — so nurture-DM text never reached the dashboard. Now sends `$('loopS').item.json._send_text` + `timestamp: $now.toISO()`, so WF3 path-B touches appear in the inbox. |
+| 2 | WF3 `Mu9azPqONf6AJuLF` | `get profile` had no error handling; a single failed Unipile profile fetch on an accepted-invite webhook aborted the whole branch and dropped the connection's sequence. Now `onError: continueRegularOutput` (downstream `initConn.hospital_name` already falls back to `lookupLead`/`''`). |
+| 3 | WF4 `0T4qsQoAhlW7Q1VQ` | Inbound replies were only mirrored when the **bot** answered (`emit message.received` hung off `update_in`, on the gateIF-true path). Human-handled / handed-off threads never reached the dashboard. The emit was **moved to fire off `self check`-true** (parallel to the 1h `wait`), so **every** genuine inbound is mirrored immediately. Idempotent on `message_id`. |
+| 4 | WF3 + WF4 | **Calendly slug standardized on `/15min`.** WF3 sent `/15min` while WF4's agent offered `/20min`; WF4's prompt (URL + three "20-minute" mentions) was brought down to `/15min`. |
+
+**Repo JSON status.** The representable fixes — WF3 `get profile` onError, WF3 `pickDue`
+`/15min`, WF4 `message agent` `/15min` — were mirrored into the checked-in `n8n/v2/*.json`
+(they preserve the files' existing credential references). Fixes #1 and #3 touch emitter nodes,
+which the repo JSON has **never contained** (it predates the dashboard-integration emitter/run-now
+nodes), so they cannot be represented there. A faithful, credential-bearing live→repo re-export of
+all four still requires the n8n **API key** (`GET /api/v1/workflows/{id}`) or the n8n UI
+**Download** button — neither the n8n-mcp Bearer JWT nor any local env var is the public API key.
+Do that re-export when an API key is available; do **not** hand-fabricate the JSON.
+
+**Control-plane note.** The dashboard `calendly_link` editable param patches **WF3 `pickDue` only**.
+WF4's Calendly link lives in the `message agent` system prompt (not a param), so changing the slug
+from the dashboard does **not** update WF4 — edit the WF4 prompt by hand to keep them in sync.
+
 ## What changed, per workflow
 
 ### WF1 — Scraper → Segmented Prospector
@@ -173,13 +200,13 @@ Three rules, all driven off two `3_CONNECTIONS` columns — `bot_paused` (TRUE/b
 
 ### WF3 — New Connection → Per-Segment Nurture Sequencer
 - **Path A (webhook `new_relation_v2`):** updates `1_LEADS`/`2_INVITATIONS`, enriches the profile, and **opens a sequence** in `3_CONNECTIONS` (`sequence_step=0`, `next_touch_at = +24–48h`). **The truncated instant DM is gone.**
-- **Path B (hourly `seqTrigger`):** sends the next due touch per **segment + step** from the v2 message library, advances the step, schedules the next touch, respects the local send window, and **halts on any inbound** reply (checked against `4_CONVERSATIONS`). Decision-makers: T1 intro → T2 deck → T3 20-min walkthrough → T4 graceful exit. Doctors: T1 no-pitch → T2 asset → T3 free access. First touch creates the chat (`POST /chats`); later touches reuse `chat_id`.
+- **Path B (hourly `seqTrigger`):** sends the next due touch per **segment + step** from the v2 message library, advances the step, schedules the next touch, respects the local send window, and **halts on any inbound** reply (checked against `4_CONVERSATIONS`). Decision-makers: T1 intro → T2 deck → T3 15-min walkthrough → T4 graceful exit. Doctors: T1 no-pitch → T2 asset → T3 free access. First touch creates the chat (`POST /chats`); later touches reuse `chat_id`.
 - **Handoff (2026-06-22):** `pickDue` now also skips any connection with `bot_paused` set or `calendly_link_sent` filled; the decision-maker **T3 (Calendly) touch** sets both flags (+ `stage=INTERESTED`, clears `next_touch_at`) via `updateConn`, so the sequence stops at the booking link and a human owns it from there.
 
 ### WF4 — DM Agent → Segment-Briefed Closer
 - Model upgraded to **`anthropic/claude-sonnet-4-6`**.
 - **`readConnAll`→`pickSeg`** injects the lead's **segment** into the agent (no more occupation-guessing).
-- System prompt rewritten: **no phone ask, no proactive email ask**; doctors → **free verified access** (no "limited period", no call unless asked); decision-makers → qualify + 20-min walkthrough. Stage enum unified.
+- System prompt rewritten: **no phone ask, no proactive email ask**; doctors → **free verified access** (no "limited period", no call unless asked); decision-makers → qualify + 15-min walkthrough. Stage enum unified.
 - **`warmthIF`→`alertEmail`** sends a deterministic founder alert on every WARM/HOT (plus the agent's existing `email_received` tool). Auto-send retained (no approval gate, per your choice). Memory, self-check, structured parser, and conversation logging kept.
 - **Reply timing & handoff (2026-06-22):** `wait` is now **1 hour**; new `fetchLatest`→`replyGate`→`gateIF` chain skips the auto-reply if the team replied during the hour or the thread is `bot_paused`/`calendly_link_sent`; new `calendlyIF`→`markHandoff` sets those flags when the agent's reply includes a Calendly link. `global` now also captures `account_id`. See **Reply timing & human-handoff** above.
 
