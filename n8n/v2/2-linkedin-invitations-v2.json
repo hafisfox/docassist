@@ -185,7 +185,7 @@
         "sendBody": true,
         "options": {},
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify( ($json.note_text && $json.note_text.length) ? { provider_id: $json.provider_id, account_id: 'u99JHDpwTMC9n8XdiLpm9g', message: $json.note_text } : { provider_id: $json.provider_id, account_id: 'u99JHDpwTMC9n8XdiLpm9g' } ) }}"
+        "jsonBody": "={{ JSON.stringify( ($json.note_text && $json.note_text.length) ? { provider_id: $json.provider_id, account_id: '_qoI4igTQTKSaTCK4Yxxsw', message: $json.note_text } : { provider_id: $json.provider_id, account_id: '_qoI4igTQTKSaTCK4Yxxsw' } ) }}"
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -804,7 +804,7 @@
           "parameters": [
             {
               "name": "account_id",
-              "value": "u99JHDpwTMC9n8XdiLpm9g"
+              "value": "_qoI4igTQTKSaTCK4Yxxsw"
             }
           ]
         },

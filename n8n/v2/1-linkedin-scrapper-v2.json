@@ -23,7 +23,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Segment rotation by weekday (Mon=CMO, Tue=CIO, Wed=Doctors, Thu=Admin, Fri=Doctors). Weekend = halt.\nconst dow = $now.weekday; // 1=Mon .. 7=Sun (luxon)\nconst map = { 1:'CMO', 2:'CIO', 3:'DOCTOR', 4:'ADMIN', 5:'DOCTOR' };\nconst segment = map[dow];\nif (!segment) return []; // weekend -> no scrape\n\n// === Active wave location IDs ===\n// Wave 1 = IN + GCC + SG | Wave 2 = UK/IE/NL/SE/DK/NO/FI/BE | Wave 3 = US/DE/AT/CH/FR. Set ACTIVE_WAVE to roll out.\nconst WAVE = {\n  1: [\"102713980\",\"104305776\",\"100459316\",\"104170880\",\"103239229\",\"103619019\",\"100425729\",\"102454443\"], // IN, AE, SA, QA, KW, OM, BH, SG\n  2: [\"101165590\",\"104738515\",\"102890719\",\"105117694\",\"104514075\",\"103819153\",\"100456013\",\"100565514\"], // UK, IE, NL, SE, DK, NO, FI, BE\n  3: [\"103644278\",\"101282230\",\"103883259\",\"106693272\",\"105015875\"]  // US, DE, AT, CH, FR\n};\nconst ACTIVE_WAVE = 1;\nconst locations = WAVE[ACTIVE_WAVE];\n\nconst INDUSTRY = [\"14\",\"13\",\"3238\",\"124\"]; // Hospitals & Health Care + adjacent\nconst defs = {\n  CMO:    { keywords:'\"Chief Medical Officer\" OR \"Medical Director\" OR \"Clinical Director\"', seniority:[\"cxo\",\"vice_president\",\"director\"], headcount:[{min:51,max:10000}], posted:false, search_name:'Hosp_CMO_Global_Active', limit:100 },\n  CIO:    { keywords:'\"Chief Information Officer\" OR CIO OR \"Chief Digital Officer\" OR \"Head of Digital\" OR \"Chief Medical Information Officer\" OR CMIO', seniority:[\"cxo\",\"vice_president\",\"director\"], headcount:[{min:201,max:10000}], posted:false, search_name:'Hosp_CIO_Global_Active', limit:100 },\n  ADMIN:  { keywords:'\"Hospital Administrator\" OR \"Director Operations\" OR \"Chief Operating Officer\"', seniority:[\"cxo\",\"vice_president\",\"director\",\"experienced_manager\"], headcount:[{min:51,max:10000}], posted:false, search_name:'Hosp_Admin_Global_Active', limit:100 },\n  DOCTOR: { keywords:'physician OR consultant OR specialist OR oncologist OR \"medical oncologist\" OR \"hemato-oncologist\"', seniority:[], headcount:[], posted:true, search_name:'Doc_Clinical_Active', limit:40 }\n};\nconst d = defs[segment];\nconst searchPayload = { api:'sales_navigator', category:'people', keywords:d.keywords, location:{ include: locations }, industry:{ include: INDUSTRY }, messaged_recently:false };\nif (d.seniority.length) searchPayload.seniority = { include: d.seniority };\nif (d.headcount.length) searchPayload.company_headcount = d.headcount;\nif (d.posted) searchPayload.posted_on_linkedin = true; // mandatory ONLY for the doctor track\nreturn [{ json: { segment, search_name:d.search_name, limit:d.limit, wave:ACTIVE_WAVE, searchPayload } }];"
+        "jsCode": "// Segment rotation by weekday (Mon=CMO, Tue=CIO, Wed=Doctors, Thu=Admin, Fri=Doctors). Weekend = halt.\nconst dow = $now.weekday; // 1=Mon .. 7=Sun (luxon)\nconst map = { 1:'CMO', 2:'CIO', 3:'DOCTOR', 4:'ADMIN', 5:'DOCTOR' };\nconst segment = map[dow];\nif (!segment) return []; // weekend -> no scrape\n\n// === Active wave location IDs ===\n// Wave 1 = IN + GCC + SG | Wave 2 = UK/IE/NL/SE/DK/NO/FI/BE | Wave 3 = US/DE/AT/CH/FR.\nconst WAVE = {\n  1: [\"102713980\",\"104305776\",\"100459316\",\"104170880\",\"103239229\",\"103619019\",\"100425729\",\"102454443\"], // IN, AE, SA, QA, KW, OM, BH, SG\n  2: [\"101165590\",\"104738515\",\"102890719\",\"105117694\",\"104514075\",\"103819153\",\"100456013\",\"100565514\"], // UK, IE, NL, SE, DK, NO, FI, BE\n  3: [\"103644278\",\"101282230\",\"103883259\",\"106693272\",\"105015875\"]  // US, DE, AT, CH, FR\n};\n// Auto-rotate the active wave every run so no single region set saturates.\n// First run after deploy => Wave 2 (Wave 1 is exhausted), then 3 -> 1 -> 2 -> 3 ...\nconst sd = $getWorkflowStaticData('global');\nsd.wf1_wave = ((sd.wf1_wave || 1) % 3) + 1;\nconst ACTIVE_WAVE = sd.wf1_wave;\nconst locations = WAVE[ACTIVE_WAVE];\n\nconst INDUSTRY = [\"14\",\"13\",\"3238\",\"124\"]; // Hospitals & Health Care + adjacent\nconst defs = {\n  CMO:    { keywords:'\"Chief Medical Officer\" OR \"Medical Director\" OR \"Clinical Director\"', seniority:[\"cxo\",\"vice_president\",\"director\"], headcount:[{min:51,max:10000}], posted:false, search_name:'Hosp_CMO_Global_Active', limit:100 },\n  CIO:    { keywords:'\"Chief Information Officer\" OR CIO OR \"Chief Digital Officer\" OR \"Head of Digital\" OR \"Chief Medical Information Officer\" OR CMIO', seniority:[\"cxo\",\"vice_president\",\"director\"], headcount:[{min:201,max:10000}], posted:false, search_name:'Hosp_CIO_Global_Active', limit:100 },\n  ADMIN:  { keywords:'\"Hospital Administrator\" OR \"Director Operations\" OR \"Chief Operating Officer\"', seniority:[\"cxo\",\"vice_president\",\"director\",\"experienced_manager\"], headcount:[{min:51,max:10000}], posted:false, search_name:'Hosp_Admin_Global_Active', limit:100 },\n  DOCTOR: { keywords:'physician OR consultant OR specialist OR oncologist OR \"medical oncologist\" OR \"hemato-oncologist\"', seniority:[], headcount:[], posted:true, search_name:'Doc_Clinical_Active', limit:40 }\n};\nconst d = defs[segment];\nconst searchPayload = { api:'sales_navigator', category:'people', keywords:d.keywords, location:{ include: locations }, industry:{ include: INDUSTRY }, messaged_recently:false };\nif (d.seniority.length) searchPayload.seniority = { include: d.seniority };\nif (d.headcount.length) searchPayload.company_headcount = d.headcount;\nif (d.posted) searchPayload.posted_on_linkedin = true; // mandatory ONLY for the doctor track\nreturn [{ json: { segment, search_name:d.search_name, limit:d.limit, wave:ACTIVE_WAVE, searchPayload } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -100,7 +100,11 @@
             },
             {
               "name": "account_id",
-              "value": "u99JHDpwTMC9n8XdiLpm9g"
+              "value": "_qoI4igTQTKSaTCK4Yxxsw"
+            },
+            {
+              "name": "cursor",
+              "value": "={{ $json.cursor || '' }}"
             }
           ]
         },
@@ -280,7 +284,7 @@
           "parameters": [
             {
               "name": "account_id",
-              "value": "u99JHDpwTMC9n8XdiLpm9g"
+              "value": "_qoI4igTQTKSaTCK4Yxxsw"
             },
             {
               "name": "limit",
@@ -596,6 +600,66 @@
       "id": "f273780f-2613-4d1c-ab57-c1adea77ac1e",
       "name": "wait",
       "webhookId": "cb0fe7a8-de3f-40e5-a229-51ce61e25091"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reset the per-run accumulator and snapshot existing provider_ids (from the aggregated leads sheet) for dedup.\n// Done here (outside the loop) because $('leads') returns empty when referenced from inside the pager loop.\nconst sd = $getWorkflowStaticData('global');\nsd.wf1_people = [];\nsd.wf1_page = 0;\nconst rows = ($input.first().json && $input.first().json.leads) || [];\nconst ex = [];\nfor (const r of rows) { const id = r && r.provider_id; if (id && id !== 'N/A') ex.push(id); }\nsd.wf1_existing = ex;\nreturn [{ json: { cursor: '' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        304
+      ],
+      "id": "b1a10001-0000-4000-8000-000000000001",
+      "name": "pageStart"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Accumulate Unipile search pages until we have enough NEW (un-scraped) leads or hit the page cap.\nconst sd = $getWorkflowStaticData('global');\nconst resp = $input.first().json || {};\nconst pageItems = Array.isArray(resp.items) ? resp.items : [];\nsd.wf1_people = (sd.wf1_people || []).concat(pageItems);\nsd.wf1_page = (sd.wf1_page || 0) + 1;\nconst cursor = resp.cursor || '';\n\n// Dedup against the snapshot taken in pageStart (NOT $('leads') -- that is empty inside the loop).\nconst existing = new Set(sd.wf1_existing || []);\nconst seen = new Set();\nlet newCount = 0;\nfor (const p of sd.wf1_people) { const id = p.id; if (!id || existing.has(id) || seen.has(id)) continue; seen.add(id); newCount++; }\n\nconst MAX_PAGES = 8;\nconst TARGET_NEW = 50;\nconst more = !!cursor && sd.wf1_page < MAX_PAGES && newCount < TARGET_NEW;\nif (more) return [{ json: { cursor } }]; // loop back to search with next cursor\n\nconst all = sd.wf1_people || [];\nsd.wf1_people = [];\nsd.wf1_page = 0;\nreturn [{ json: { items: all } }]; // exit: hand all accumulated people to parser (it flattens .items)"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        480
+      ],
+      "id": "b1a10002-0000-4000-8000-000000000002",
+      "name": "pager"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "more-cursor-0001",
+              "leftValue": "={{ $json.cursor }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        620,
+        480
+      ],
+      "id": "b1a10003-0000-4000-8000-000000000003",
+      "name": "moreIF"
     }
   ],
   "connections": {
@@ -636,7 +700,7 @@
       "main": [
         [
           {
-            "node": "search",
+            "node": "pageStart",
             "type": "main",
             "index": 0
           }
@@ -647,7 +711,7 @@
       "main": [
         [
           {
-            "node": "parser",
+            "node": "pager",
             "type": "main",
             "index": 0
           }
@@ -777,6 +841,46 @@
         [
           {
             "node": "loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pageStart": {
+      "main": [
+        [
+          {
+            "node": "search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pager": {
+      "main": [
+        [
+          {
+            "node": "moreIF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "moreIF": {
+      "main": [
+        [
+          {
+            "node": "search",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "parser",
             "type": "main",
             "index": 0
           }
