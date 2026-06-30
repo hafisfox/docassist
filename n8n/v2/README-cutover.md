@@ -124,7 +124,7 @@ make that refactor in n8n, then restore the WF2 `editableParams` in
 
 > **Status — APPLIED to live n8n 2026-06-22** (surgical `update_workflow` ops; emitter/run-now nodes preserved). Both live WF3 (`Mu9azPqONf6AJuLF`) and WF4 (`0T4qsQoAhlW7Q1VQ`) carry the new logic; both remain **inactive** pre-cutover.
 > - **STEP 1 columns added to the live sheet (all tabs done 2026-06-22):** `3_CONNECTIONS` cols N–T (`segment, region, hospital_name, sequence_step, next_touch_at, last_inbound_at, bot_paused`); `1_LEADS` cols L–T (`hospital_name, segment, region, country, search_name, last_post_date, topic, tier, template_safe`); `2_INVITATIONS` col J (`segment`). All three tabs previously had **none** of the v2 columns. (n8n's Sheets node throws `checkForSchemaChanges` — "Missing columns: X" — rather than auto-creating them, so they had to be pre-added.)
-> - **One manual step left:** WF4 `fetchLatest` needs its credential set in the UI — Authentication → Generic Credential Type → **Header Auth → Unipile**. (The n8n API/MCP can't attach generic header-auth to an httpRequest node.) It's fail-soft (`onError: continueRegularOutput`), so until set, the team-reply guard is bypassed but the 1h wait + Calendly handoff still work.
+> - **⛔ BLOCKING manual step:** WF4 `fetchLatest` needs its credential set in the UI — Authentication → Generic Credential Type → **Header Auth → Unipile**. (The n8n API/MCP can't attach generic header-auth to an httpRequest node.) It's fail-soft (`onError: continueRegularOutput`), so until set, the team-reply guard, duplicate-send guard, AND the new "scheduling link already in thread" handoff are ALL bypassed (only the 1h wait + sheet-flag handoff remain). The duplicate-Calendly spam seen in production traces to this credential being unset — **do not activate WF4 until it is attached.**
 
 
 
@@ -209,6 +209,32 @@ from the dashboard does **not** update WF4 — edit the WF4 prompt by hand to ke
 - System prompt rewritten: **no phone ask, no proactive email ask**; doctors → **free verified access** (no "limited period", no call unless asked); decision-makers → qualify + 15-min walkthrough. Stage enum unified.
 - **`warmthIF`→`alertEmail`** sends a deterministic founder alert on every WARM/HOT (plus the agent's existing `email_received` tool). Auto-send retained (no approval gate, per your choice). Memory, self-check, structured parser, and conversation logging kept.
 - **Reply timing & handoff (2026-06-22):** `wait` is now **1 hour**; new `fetchLatest`→`replyGate`→`gateIF` chain skips the auto-reply if the team replied during the hour or the thread is `bot_paused`/`calendly_link_sent`; new `calendlyIF`→`markHandoff` sets those flags when the agent's reply includes a Calendly link. `global` now also captures `account_id`. See **Reply timing & human-handoff** above.
+
+### WF4 — anti-bot-reveal hardening (2026-06-30)
+
+Applied after a production audit of `4_CONVERSATIONS` (prospects calling out the bot,
+leaked operator text, duplicate Calendly sends, no stop on human-sent meeting links).
+Live `0T4qsQoAhlW7Q1VQ` + repo `4-linkedin-dms-v2.json`:
+
+1. **Never reply to our own messages.** `global` now captures `is_sender`; `self check`
+   proceeds only when `is_sender` is falsy **and** `sender_id` is not one of our account
+   ids. (Root cause of the Harjit "…routed into the pipeline in error… Chat ID Nx666…"
+   leak: our own outbound note re-entered as inbound and got "replied to".)
+2. **Output safety screen.** New `outputGuard` Code node sits between `message agent` and
+   the send `If`. It blocks empty drafts and any draft containing operator/CRM/system
+   leaks, bot/AI self-reveal, or hallucinated live actions ("letting you in", "team is
+   connecting now", "I see you're in the meeting"). The `If` now tests `safe`; the **false**
+   branch routes to `suppressedAlert` (founder email "⚠️ Auto-reply suppressed — needs
+   human") and sends nothing.
+3. **Stop on ANY meeting link, either side.** `replyGate` now also skips when a scheduling
+   link (`calendly.com | teams.microsoft.com/meet | zoom.us | meet.google`) appears anywhere
+   in the `fetchLatest` history — human-sent Teams links included (the Pankaj/Harjit cases).
+   `calendlyIF` broadened from the literal word "calendly" to the same link set, so
+   `markHandoff` stamps `calendly_link_sent` + `bot_paused` for any link the bot sends.
+4. **Persona rules in the system prompt.** The agent is a human (never a bot/AI/system),
+   must never reference internals, must never claim live actions it can't perform, and must
+   return an **empty** `message` (stay silent → human takes over) whenever it can't write a
+   genuine reply or a meeting is already live/scheduled.
 
 ---
 
