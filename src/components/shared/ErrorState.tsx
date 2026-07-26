@@ -1,6 +1,7 @@
 import { AlertCircle } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { APP_SUPPORT_URL } from "@/constants/branding";
 
 interface ErrorStateProps {
   title?: string;
@@ -14,7 +15,7 @@ export function ErrorState({
   title = "Something went wrong",
   message,
   onRetry,
-  supportHref = "https://doctorassist.ai/",
+  supportHref = APP_SUPPORT_URL,
   className,
 }: ErrorStateProps) {
   return (

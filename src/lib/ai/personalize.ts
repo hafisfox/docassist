@@ -20,9 +20,9 @@ const CHAR_LIMITS: Record<"connection_request" | "message" | "follow_up", number
 }
 
 const SEGMENT_LABELS: Record<IcpSegment, string> = {
-  high_volume_chemo: "High-Volume Chemo Clinic (40–80 patients/day)",
-  precision_oncology: "Precision Oncology Centre",
-  insurance_heavy_urban: "Insurance-Heavy Urban Practice",
+  enterprise: "Enterprise",
+  mid_market: "Mid-Market",
+  smb: "SMB",
 }
 
 export interface PersonalizeOptions {
@@ -42,7 +42,7 @@ export interface PersonalizeOptions {
  * Calls the OpenAI API (gpt-4o-mini) to personalise or optimise a message.
  *
  * - With `lead`: replaces `{{variables}}` with real lead data and tailors copy to their profile.
- * - Without `lead`: rewrites the template to follow DoctorAssist style guidelines while
+ * - Without `lead`: rewrites the template to follow the house style guidelines while
  *   keeping all `{{variable}}` placeholders intact.
  *
  * @returns The personalised / optimised message string (trimmed, no preamble or quotes).
@@ -60,9 +60,9 @@ export async function personalizeMessage({
     const profileLines = [
       `Name: ${lead.full_name}`,
       lead.job_title ? `Title: ${lead.job_title}` : null,
-      lead.company ? `Institution: ${lead.company}` : null,
+      lead.company ? `Company: ${lead.company}` : null,
       lead.city ? `City: ${lead.city}` : null,
-      lead.specialty ? `Specialty: ${lead.specialty}` : null,
+      lead.industry ? `Industry: ${lead.industry}` : null,
       lead.headline ? `LinkedIn headline: ${lead.headline}` : null,
       lead.icp_segment ? `Segment: ${SEGMENT_LABELS[lead.icp_segment]}` : null,
       lead.experience_years != null ? `Experience: ${lead.experience_years} years` : null,
@@ -92,7 +92,7 @@ Rules:
     const messageType =
       category === "connection_request" ? "connection request template" : "message template"
 
-    userPrompt = `Improve this ${messageType} for DoctorAssist.AI oncologist outreach.
+    userPrompt = `Improve this ${messageType} for LinkedIn outreach.
 
 Current template:
 ${template}

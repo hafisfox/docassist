@@ -16,6 +16,7 @@ import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { checkAndIncrementLimit, randomDelay } from "@/lib/queue/rateLimiter";
 import { getUnipileClient } from "@/lib/unipile/client";
 import { getCircuitBreaker } from "@/lib/queue/circuitBreaker";
+import { fillTemplate } from "@/constants/templateVariables";
 import {
   WAIT_FOR_ACCEPTANCE_TIMEOUT_DAYS,
   WAIT_FOR_ACCEPTANCE_CHECK_INTERVAL_HOURS,
@@ -643,14 +644,7 @@ async function getNextStepOrder(
 }
 
 function personalizeMessage(body: string, lead: Lead): string {
-  return body
-    .replace(/\{\{first_name\}\}/gi, lead.first_name || "")
-    .replace(/\{\{last_name\}\}/gi, lead.last_name || "")
-    .replace(/\{\{full_name\}\}/gi, lead.full_name || "")
-    .replace(/\{\{company\}\}/gi, lead.company || "")
-    .replace(/\{\{job_title\}\}/gi, lead.job_title || "")
-    .replace(/\{\{specialty\}\}/gi, lead.specialty || "")
-    .replace(/\{\{location\}\}/gi, lead.location || "");
+  return fillTemplate(body, lead);
 }
 
 function evaluateCondition(lead: Lead, step: SequenceStep): boolean {

@@ -99,7 +99,7 @@ export interface UpsertLeadInput {
   company?: string | null;
   location?: string | null;
   country?: string | null;
-  hospital_name?: string | null;
+  account_name?: string | null;
   segment?: string | null;
   region?: string | null;
   tier?: string | null;
@@ -132,7 +132,7 @@ export async function upsertLeadByProvider(
     company: input.company ?? undefined,
     location: input.location ?? undefined,
     country: input.country ?? undefined,
-    hospital_name: input.hospital_name ?? undefined,
+    account_name: input.account_name ?? undefined,
     segment: input.segment ?? undefined,
     region: input.region ?? undefined,
     tier: input.tier ?? undefined,

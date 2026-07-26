@@ -27,13 +27,13 @@ CREATE TABLE leads (
   location TEXT,
   city TEXT,
   country TEXT,
-  specialty TEXT,
+  industry TEXT,
   experience_years INTEGER,
 
   -- ICP Classification
   icp_segment icp_segment,
   icp_score INTEGER DEFAULT 0,
-  hospital_type TEXT,
+  account_type TEXT,          -- corporate | agency | nonprofit | public_sector | startup
   target_region TEXT,
 
   -- Outreach Status

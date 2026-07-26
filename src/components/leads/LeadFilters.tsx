@@ -36,15 +36,17 @@ const LEAD_STATUSES: LeadStatus[] = [
 ]
 
 const ICP_SEGMENTS: { value: IcpSegment; label: string }[] = [
-  { value: "high_volume_chemo", label: "High-Volume Chemo" },
-  { value: "precision_oncology", label: "Precision Oncology" },
-  { value: "insurance_heavy_urban", label: "Insurance-Heavy Urban" },
+  { value: "enterprise", label: "Enterprise" },
+  { value: "mid_market", label: "Mid-Market" },
+  { value: "smb", label: "SMB" },
 ]
 
-const HOSPITAL_TYPES = [
-  { value: "corporate_chain", label: "Corporate Chain" },
-  { value: "cancer_center", label: "Cancer Center" },
-  { value: "uae_hospital", label: "UAE Hospital" },
+const ACCOUNT_TYPES = [
+  { value: "corporate", label: "Corporate" },
+  { value: "startup", label: "Startup" },
+  { value: "agency", label: "Agency" },
+  { value: "nonprofit", label: "Nonprofit" },
+  { value: "public_sector", label: "Public Sector" },
 ]
 
 interface Campaign {
@@ -56,13 +58,13 @@ interface LeadFiltersProps {
   statuses: LeadStatus[]
   icpSegment: string
   location: string
-  hospitalType: string
+  accountType: string
   campaignId: string
   campaigns: Campaign[]
   onStatusChange: (statuses: LeadStatus[]) => void
   onIcpSegmentChange: (segment: string) => void
   onLocationChange: (location: string) => void
-  onHospitalTypeChange: (type: string) => void
+  onAccountTypeChange: (type: string) => void
   onCampaignChange: (id: string) => void
   onClearAll: () => void
   activeFilterCount: number
@@ -72,13 +74,13 @@ function LeadFilters({
   statuses,
   icpSegment,
   location,
-  hospitalType,
+  accountType,
   campaignId,
   campaigns,
   onStatusChange,
   onIcpSegmentChange,
   onLocationChange,
-  onHospitalTypeChange,
+  onAccountTypeChange,
   onCampaignChange,
   onClearAll,
   activeFilterCount,
@@ -166,19 +168,19 @@ function LeadFilters({
         </SelectContent>
       </Select>
 
-      {/* Hospital Type */}
+      {/* Account Type */}
       <Select
-        value={hospitalType || "__all__"}
+        value={accountType || "__all__"}
         onValueChange={(val) =>
-          onHospitalTypeChange(val === "__all__" ? "" : (val as string))
+          onAccountTypeChange(val === "__all__" ? "" : (val as string))
         }
       >
         <SelectTrigger size="sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__all__">All Hospital Types</SelectItem>
-          {HOSPITAL_TYPES.map((type) => (
+          <SelectItem value="__all__">All Account Types</SelectItem>
+          {ACCOUNT_TYPES.map((type) => (
             <SelectItem key={type.value} value={type.value}>
               {type.label}
             </SelectItem>

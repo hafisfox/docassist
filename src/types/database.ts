@@ -45,10 +45,8 @@ export type ActivityType =
   | "campaign_paused"
   | "error";
 
-export type IcpSegment =
-  | "high_volume_chemo"
-  | "precision_oncology"
-  | "insurance_heavy_urban";
+/** Company size tier. */
+export type IcpSegment = "enterprise" | "mid_market" | "smb";
 
 export type MessageDirection = "outbound" | "inbound";
 
@@ -74,11 +72,12 @@ export interface Lead {
   location: string | null;
   city: string | null;
   country: string | null;
-  specialty: string | null;
+  industry: string | null;
   experience_years: number | null;
   icp_segment: IcpSegment | null;
   icp_score: number;
-  hospital_type: string | null;
+  /** Org category: corporate | agency | nonprofit | public_sector | startup */
+  account_type: string | null;
   target_region: string | null;
   status: LeadStatus;
   campaign_id: string | null;
@@ -89,7 +88,7 @@ export interface Lead {
   experience: Record<string, unknown>[];
   source: string;
   // n8n v2 sync columns (migration 20240101000013)
-  hospital_name: string | null;
+  account_name: string | null;
   segment: string | null;
   region: string | null;
   tier: string | null;

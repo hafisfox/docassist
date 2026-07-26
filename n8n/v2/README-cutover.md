@@ -1,6 +1,26 @@
 # LinkedIn Outreach Workflows — v2 Rebuild & Cutover Runbook
 
-Rebuilt per **DoctorAssist_LeadGen_Strategy_v2.pdf** (June 2026). The four v2 workflows are **copies** of the live v1 workflows with the strategy's in-workflow changes applied. The originals were **not modified**.
+Rebuilt per the v2 lead-gen strategy (June 2026). The four v2 workflows are **copies** of the live v1 workflows with the strategy's in-workflow changes applied. The originals were **not modified**.
+
+> ### ⚠️ De-branded — these JSONs no longer match what is live on n8n
+> The workflows were de-verticalised (July 2026): product narrative, ICP personas
+> and hardcoded links were replaced with generic equivalents. **They must be
+> re-imported before the changes take effect**, and three operator values are
+> deliberate placeholders that have to be set first:
+>
+> | Where | Constant | Placeholder |
+> |---|---|---|
+> | WF3 `pickDue` | `OVERVIEW_LINK`, `MEETING_LINK`, `TRY_LINK` | empty — touches needing a link are skipped |
+> | WF4 `message agent` | `SENDER`, `OFFERING`, `MEETING LINK` in the system message | unset — the model is told to make no product claims |
+> | WF4 `email_received`, `alertEmail`, `suppressedAlert` | Gmail `sendTo` | `alerts@example.com` |
+>
+> **Unchanged on purpose:** the Google Sheets column names (`hospital_name`,
+> `segment`, `calendly_link_sent`). The Sheets node validates against the live
+> sheet schema and throws `checkForSchemaChanges` — "Missing columns" — rather
+> than auto-creating, so renaming the JSON side alone breaks every run. The
+> segment vocabulary changed (`CMO/CIO/ADMIN/DOCTOR` → `EXEC/TECH/OPS/PRACTITIONER`)
+> but WF2/WF3/WF4 normalise the legacy values on read, so existing sheet rows
+> keep working.
 
 ## What exists now (in n8n: `n8n.srv1183265.hstgr.cloud`)
 
@@ -34,7 +54,7 @@ v1 ignores unknown columns, so adding these is safe while v1 runs. Add them as n
 
 ## STEP 3 — Test each v2 workflow while INACTIVE
 Use n8n's manual **Execute Workflow** / **Listen for test event** with a couple of real rows:
-- **WF1:** run once → `1_LEADS` rows carry `segment/region/hospital_name/tier/template_safe`; a Wednesday/Friday run (Doctor segment) also fills `last_post_date/topic`; REJECTs are dropped.
+- **WF1:** run once → `1_LEADS` rows carry `segment/region/hospital_name/tier/template_safe`; a Wednesday/Friday run (PRACTITIONER segment) also fills `last_post_date/topic`; REJECTs are dropped.
 - **WF2:** the `windowFilter`/`guards` Code nodes compute correctly; notes pick the right variant and stay ≤300 chars; force trailing acceptance <25% → run halts (kill-switch).
 - **WF3:** POST a sample `relation.new` body to the test webhook → a `3_CONNECTIONS` row opens with `sequence_step=0` and a `next_touch_at` ~24–48h out, **no instant DM**; set `next_touch_at` to the past and run the `seqTrigger` path → T1 sends and `sequence_step` advances; add an inbound row in `4_CONVERSATIONS` → sequence halts.
 - **WF4:** POST a sample `message.received` body → reply uses `claude-sonnet-4-6`, pulls `segment` from `3_CONNECTIONS`, never asks for phone, doctor track offers free access (no call); WARM/HOT fires the founder email.
@@ -51,7 +71,7 @@ Use n8n's manual **Execute Workflow** / **Listen for test event** with a couple 
 
 ## Dashboard integration (sync + control)
 
-The DoctorAssist dashboard now has an **Automations** page that controls these four
+The dashboard now has an **Automations** page that controls these four
 v2 workflows directly via the n8n REST API, and a Supabase mirror so the
 leads/inbox/campaigns UI reflects what n8n is doing. This requires:
 
@@ -195,7 +215,7 @@ from the dashboard does **not** update WF4 — edit the WF4 prompt by hand to ke
 ### WF2 — Invitations → Region/Segment-Aware Sender
 - Hourly trigger; **`guards`** enforces the 07:00–22:00 IST window, the **acceptance kill-switch (<25%)**, the **pending-pile guard (≥150)**, and the **daily ceiling (20)**.
 - **`windowFilter`** sends only to leads whose **local** time is 09:00–11:30 on a weekday (region→offset map, approx DST).
-- **`buildNote`** branches the note: decision-makers w/ hospital → contextual note (CIO gets the FHIR variant); decision-makers w/o hospital → **blank**; doctors who recently posted → "your posts" note; else **blank**. Invite body omits `message` entirely for blank invites; all notes clipped to ≤300 chars.
+- **`buildNote`** branches the note: decision-makers w/ a known account → contextual note; decision-makers w/o one → **blank**; practitioners who recently posted → "your posts" note; else **blank**. Invite body omits `message` entirely for blank invites; all notes clipped to ≤300 chars. *(De-branded July 2026 — the segment-specific product copy was replaced with generic equivalents.)*
 - Second **weekly trigger** runs the withdrawal job: invites pending >21 days → `DELETE /users/{id}/invitations` + `invite_status=expired`.
 
 ### WF3 — New Connection → Per-Segment Nurture Sequencer

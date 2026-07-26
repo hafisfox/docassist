@@ -21,7 +21,6 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import {
   ICP_TITLES,
   TARGET_LOCATIONS,
-  TARGET_HOSPITALS,
   LINKEDIN_SEARCH_FILTERS,
 } from "@/constants/icp";
 import type { UnipileSearchResultItem } from "@/lib/unipile/types";
@@ -195,7 +194,7 @@ function LinkedInSearchPanel() {
               <Label htmlFor="keywords">Keywords</Label>
               <Input
                 id="keywords"
-                placeholder="e.g. oncologist, medical oncology"
+                placeholder="e.g. procurement, platform engineering"
                 value={form.keywords}
                 onChange={(e) => updateField("keywords", e.target.value)}
               />
@@ -206,7 +205,7 @@ function LinkedInSearchPanel() {
               <Input
                 id="title"
                 list="icp-titles"
-                placeholder="e.g. Medical Oncologist"
+                placeholder="e.g. VP of Engineering"
                 value={form.title}
                 onChange={(e) => updateField("title", e.target.value)}
               />
@@ -222,7 +221,7 @@ function LinkedInSearchPanel() {
               <Input
                 id="location"
                 list="target-locations"
-                placeholder="e.g. Mumbai, Delhi NCR"
+                placeholder="e.g. London, New York"
                 value={form.location}
                 onChange={(e) => updateField("location", e.target.value)}
               />
@@ -234,19 +233,13 @@ function LinkedInSearchPanel() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="company">Company / Hospital</Label>
+              <Label htmlFor="company">Company</Label>
               <Input
                 id="company"
-                list="target-hospitals"
-                placeholder="e.g. Apollo Hospitals"
+                placeholder="e.g. Acme Corp"
                 value={form.company}
                 onChange={(e) => updateField("company", e.target.value)}
               />
-              <datalist id="target-hospitals">
-                {TARGET_HOSPITALS.map((h) => (
-                  <option key={h} value={h} />
-                ))}
-              </datalist>
             </div>
           </div>
 

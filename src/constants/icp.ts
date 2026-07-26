@@ -1,87 +1,69 @@
 // ─── ICP Constants ──────────────────────────────────────────────────────────
-// Ideal Customer Profile definitions for DoctorAssist.AI LinkedIn outreach.
-// Used by UI components for search presets and filter dropdowns.
+// Ideal Customer Profile defaults for LinkedIn outreach. Used by UI components
+// for search presets and filter dropdowns.
+//
+// These are deliberately broad starter defaults, not a fixed taxonomy — edit
+// this file to match the ICP you are actually prospecting. Nothing here is
+// persisted; the values only seed dropdowns and search-filter presets.
 
 // ─── Titles ─────────────────────────────────────────────────────────────────
 
-/** Primary ICP titles — medical oncologists */
+/** Senior decision-maker titles. */
+export const DECISION_MAKER_TITLES = [
+  "Chief Executive Officer",
+  "Chief Technology Officer",
+  "Chief Operating Officer",
+  "Chief Marketing Officer",
+  "Founder",
+  "Co-Founder",
+] as const;
+
+/** Functional leadership titles — line-of-business buyers and champions. */
+export const FUNCTIONAL_LEAD_TITLES = [
+  "VP of Sales",
+  "VP of Engineering",
+  "VP of Marketing",
+  "Head of Growth",
+  "Head of Operations",
+  "Director of Product",
+] as const;
+
+/** All ICP titles combined. */
 export const ICP_TITLES = [
-  "Medical Oncologist",
-  "Consultant Medical Oncology",
-  "Clinical Oncologist",
-  "Hemato-Oncologist",
-  "DM Medical Oncology",
-  "Head of Oncology",
-  "Director Oncology",
-  "Senior Consultant Oncology",
-  "CMO",
+  ...DECISION_MAKER_TITLES,
+  ...FUNCTIONAL_LEAD_TITLES,
 ] as const;
 
 export type IcpTitle = (typeof ICP_TITLES)[number];
 
-// ─── Hospitals ──────────────────────────────────────────────────────────────
-
-/** Corporate hospital chains (India) */
-export const TARGET_HOSPITAL_CHAINS = [
-  "Apollo Hospitals",
-  "Fortis Healthcare",
-  "Manipal Hospitals",
-  "Aster DM Healthcare",
-] as const;
-
-/** Dedicated cancer centers */
-export const TARGET_CANCER_CENTERS = [
-  "HCG Cancer Centre",
-  "Tata Memorial Centre",
-] as const;
-
-/** UAE hospital targets */
-export const TARGET_UAE_HOSPITALS = [
-  "Cleveland Clinic Abu Dhabi",
-  "Mediclinic",
-  "Burjeel Holdings",
-  "American Hospital Dubai",
-] as const;
-
-/** All target hospitals combined */
-export const TARGET_HOSPITALS = [
-  ...TARGET_HOSPITAL_CHAINS,
-  ...TARGET_CANCER_CENTERS,
-  ...TARGET_UAE_HOSPITALS,
-] as const;
-
-export type TargetHospital = (typeof TARGET_HOSPITALS)[number];
-
 // ─── Locations ──────────────────────────────────────────────────────────────
 
-/** Phase 1 India cities */
-export const PHASE_1_INDIA_LOCATIONS = [
-  "Mumbai",
-  "Delhi NCR",
-  "Bengaluru",
-  "Hyderabad",
-  "Chennai",
+export const NORTH_AMERICA_LOCATIONS = [
+  "San Francisco Bay Area",
+  "New York",
+  "Austin",
+  "Toronto",
 ] as const;
 
-/** Phase 1 UAE cities */
-export const PHASE_1_UAE_LOCATIONS = [
-  "Abu Dhabi",
+export const EUROPE_LOCATIONS = [
+  "London",
+  "Berlin",
+  "Amsterdam",
+  "Paris",
+] as const;
+
+export const APAC_LOCATIONS = [
+  "Singapore",
+  "Sydney",
+  "Bengaluru",
   "Dubai",
 ] as const;
 
-/** Phase 2 India cities */
-export const PHASE_2_INDIA_LOCATIONS = [
-  "Pune",
-  "Ahmedabad",
-  "Kochi",
-  "Lucknow",
-] as const;
-
-/** All target locations across phases */
+/** All target locations across regions. */
 export const TARGET_LOCATIONS = [
-  ...PHASE_1_INDIA_LOCATIONS,
-  ...PHASE_1_UAE_LOCATIONS,
-  ...PHASE_2_INDIA_LOCATIONS,
+  ...NORTH_AMERICA_LOCATIONS,
+  ...EUROPE_LOCATIONS,
+  ...APAC_LOCATIONS,
 ] as const;
 
 export type TargetLocation = (typeof TARGET_LOCATIONS)[number];
@@ -98,42 +80,34 @@ export interface LinkedInSearchFilterPreset {
 
 /** Pre-built search filter configurations for common outreach scenarios */
 export const LINKEDIN_SEARCH_FILTERS: Record<string, LinkedInSearchFilterPreset> = {
-  phase1_primary: {
-    label: "Phase 1 — Primary Oncologists (India + UAE)",
-    titles: ICP_TITLES.slice(0, 5), // Primary titles only
-    locations: [...PHASE_1_INDIA_LOCATIONS, ...PHASE_1_UAE_LOCATIONS],
+  decision_makers: {
+    label: "Decision Makers — All Regions",
+    titles: DECISION_MAKER_TITLES,
+    locations: TARGET_LOCATIONS,
   },
-  phase1_senior: {
-    label: "Phase 1 — Senior Decision Makers",
-    titles: ICP_TITLES.slice(5), // Senior titles only
-    locations: [...PHASE_1_INDIA_LOCATIONS, ...PHASE_1_UAE_LOCATIONS],
+  functional_leads: {
+    label: "Functional Leads — All Regions",
+    titles: FUNCTIONAL_LEAD_TITLES,
+    locations: TARGET_LOCATIONS,
   },
-  phase1_all: {
-    label: "Phase 1 — All ICP Titles",
-    titles: ICP_TITLES,
-    locations: [...PHASE_1_INDIA_LOCATIONS, ...PHASE_1_UAE_LOCATIONS],
-  },
-  phase2_india: {
-    label: "Phase 2 — India Expansion",
-    titles: ICP_TITLES,
-    locations: [...PHASE_2_INDIA_LOCATIONS],
-  },
-  corporate_chains: {
-    label: "Corporate Hospital Chains",
+  all_titles: {
+    label: "All ICP Titles",
     titles: ICP_TITLES,
     locations: TARGET_LOCATIONS,
-    companies: TARGET_HOSPITAL_CHAINS,
   },
-  cancer_centers: {
-    label: "Dedicated Cancer Centers",
+  north_america: {
+    label: "North America",
     titles: ICP_TITLES,
-    locations: TARGET_LOCATIONS,
-    companies: TARGET_CANCER_CENTERS,
+    locations: NORTH_AMERICA_LOCATIONS,
   },
-  uae_hospitals: {
-    label: "UAE Hospital Targets",
+  europe: {
+    label: "Europe",
     titles: ICP_TITLES,
-    locations: [...PHASE_1_UAE_LOCATIONS],
-    companies: TARGET_UAE_HOSPITALS,
+    locations: EUROPE_LOCATIONS,
+  },
+  apac: {
+    label: "APAC & Middle East",
+    titles: ICP_TITLES,
+    locations: APAC_LOCATIONS,
   },
 } as const;

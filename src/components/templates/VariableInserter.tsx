@@ -9,16 +9,7 @@ import {
 import { BracesIcon } from "lucide-react"
 import { useState } from "react"
 
-const TEMPLATE_VARIABLES = [
-  { name: "first_name", label: "First Name", example: "Rahul" },
-  { name: "last_name", label: "Last Name", example: "Sharma" },
-  { name: "company", label: "Company", example: "Apollo Hospitals" },
-  { name: "specialty", label: "Specialty", example: "Medical Oncology" },
-  { name: "city", label: "City", example: "Mumbai" },
-  { name: "title", label: "Job Title", example: "Consultant Medical Oncologist" },
-] as const
-
-export type TemplateVariable = (typeof TEMPLATE_VARIABLES)[number]["name"]
+import { SELECTABLE_TEMPLATE_VARIABLES } from "@/constants/templateVariables"
 
 interface VariableInserterProps {
   onInsert: (variable: string) => void
@@ -39,7 +30,7 @@ export function VariableInserter({ onInsert }: VariableInserterProps) {
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-1">
         <div className="grid gap-0.5">
-          {TEMPLATE_VARIABLES.map((v) => (
+          {SELECTABLE_TEMPLATE_VARIABLES.map((v) => (
             <button
               key={v.name}
               type="button"
@@ -60,5 +51,3 @@ export function VariableInserter({ onInsert }: VariableInserterProps) {
     </Popover>
   )
 }
-
-export { TEMPLATE_VARIABLES }

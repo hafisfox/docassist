@@ -57,7 +57,7 @@ function LeadsContent() {
       campaignId: searchParams.get("campaign_id") || "",
       icpSegment: searchParams.get("icp_segment") || "",
       location: searchParams.get("location") || "",
-      hospitalType: searchParams.get("hospital_type") || "",
+      accountType: searchParams.get("account_type") || "",
       sortBy: searchParams.get("sort_by") || "created_at",
       sortOrder: (searchParams.get("sort_order") || "desc") as "asc" | "desc",
       page: Number(searchParams.get("page")) || 1,
@@ -122,11 +122,13 @@ function LeadsContent() {
     const status = params.get("status")
     const campaignId = params.get("campaign_id")
     const icpSegment = params.get("icp_segment")
+    const accountType = params.get("account_type")
     const location = params.get("location")
     if (search) apiFilters.search = search
     if (status && !status.includes(",")) apiFilters.status = status
     if (campaignId) apiFilters.campaign_id = campaignId
     if (icpSegment) apiFilters.icp_segment = icpSegment
+    if (accountType) apiFilters.account_type = accountType
     if (location) apiFilters.location = location
     return apiFilters
   }, [searchParamsString])
@@ -292,7 +294,7 @@ function LeadsContent() {
     filters.statuses.length +
     (filters.icpSegment ? 1 : 0) +
     (filters.location ? 1 : 0) +
-    (filters.hospitalType ? 1 : 0) +
+    (filters.accountType ? 1 : 0) +
     (filters.campaignId ? 1 : 0)
 
   return (
@@ -343,7 +345,7 @@ function LeadsContent() {
           statuses={filters.statuses}
           icpSegment={filters.icpSegment}
           location={filters.location}
-          hospitalType={filters.hospitalType}
+          accountType={filters.accountType}
           campaignId={filters.campaignId}
           campaigns={campaigns}
           onStatusChange={handleStatusChange}
@@ -353,8 +355,8 @@ function LeadsContent() {
           onLocationChange={(val) =>
             updateParams({ location: val || undefined, page: undefined })
           }
-          onHospitalTypeChange={(val) =>
-            updateParams({ hospital_type: val || undefined, page: undefined })
+          onAccountTypeChange={(val) =>
+            updateParams({ account_type: val || undefined, page: undefined })
           }
           onCampaignChange={(val) =>
             updateParams({ campaign_id: val || undefined, page: undefined })

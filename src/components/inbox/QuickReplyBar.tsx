@@ -13,6 +13,7 @@ import {
   CalendarCheckIcon,
   LayoutTemplateIcon,
 } from "lucide-react";
+import { APP_BOOKING_URL } from "@/constants/branding";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -114,11 +115,14 @@ export function QuickReplyBar({
   onMarkNotInterested,
   onInsertTemplate,
 }: QuickReplyBarProps) {
+  // Without a configured booking link there is nothing useful to insert, so the
+  // button is disabled rather than pasting a dead URL into a prospect's DM.
+  const canBookMeeting = APP_BOOKING_URL.length > 0;
+
   const handleBookMeeting = () => {
-    // Insert a calendar booking message template
-    const calLink = "https://calendly.com/doctorassist";
+    if (!canBookMeeting) return;
     onInsertTemplate(
-      `Thank you for your interest! I'd love to schedule a quick demo of DoctorAssist.AI. You can book a 20-minute slot that works for you here: ${calLink}`,
+      `Thanks for your interest! Happy to walk you through it — you can grab a 20-minute slot that suits you here: ${APP_BOOKING_URL}`,
     );
   };
 
@@ -154,6 +158,12 @@ export function QuickReplyBar({
         size="sm"
         className="h-7 gap-1.5 text-xs"
         onClick={handleBookMeeting}
+        disabled={!canBookMeeting}
+        title={
+          canBookMeeting
+            ? undefined
+            : "Set NEXT_PUBLIC_BOOKING_URL to enable the booking quick reply"
+        }
       >
         <CalendarCheckIcon className="size-3.5" />
         Book Meeting

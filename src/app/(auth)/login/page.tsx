@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useActionState, useEffect, useState } from "react";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -17,6 +16,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { BrandMark } from "@/components/layout/BrandMark";
+import { APP_NAME } from "@/constants/branding";
 
 export default function LoginPage() {
   return (
@@ -50,15 +51,9 @@ function LoginForm() {
     <Card>
       <CardHeader className="text-center">
         <div className="mx-auto mb-2 flex items-center gap-2">
-          <Image
-            src="/logo.webp"
-            alt="DoctorAssist.AI logo"
-            width={32}
-            height={32}
-            className="size-8 shrink-0 rounded-lg object-cover"
-          />
+          <BrandMark />
           <span className="text-lg font-semibold tracking-tight">
-            DoctorAssist.AI
+            {APP_NAME}
           </span>
         </div>
         <CardTitle>{isSignUp ? "Create an account" : "Welcome back"}</CardTitle>

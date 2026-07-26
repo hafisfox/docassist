@@ -33,11 +33,7 @@ const sequenceStepTypeValues = [
   "condition",
 ] as const;
 
-const icpSegmentValues = [
-  "high_volume_chemo",
-  "precision_oncology",
-  "insurance_heavy_urban",
-] as const;
+const icpSegmentValues = ["enterprise", "mid_market", "smb"] as const;
 
 // ─── Lead ────────────────────────────────────────────────────────────
 
@@ -54,10 +50,10 @@ export const createLeadSchema = z.object({
   location: z.string().optional(),
   city: z.string().optional(),
   country: z.string().optional(),
-  specialty: z.string().optional(),
+  industry: z.string().optional(),
   experience_years: z.number().int().nonnegative().optional(),
   icp_segment: z.enum(icpSegmentValues).optional(),
-  hospital_type: z.string().optional(),
+  account_type: z.string().optional(),
   target_region: z.string().optional(),
   campaign_id: z.string().uuid().optional(),
   source: z.string().optional(),
@@ -118,6 +114,7 @@ export const listLeadsQuerySchema = z.object({
   ] as const).optional(),
   campaign_id: z.string().uuid().optional(),
   icp_segment: z.enum(icpSegmentValues).optional(),
+  account_type: z.string().max(64).optional(),
   location: z.string().optional(),
   search: z.string().max(200).optional(),
   sort_by: z.enum([

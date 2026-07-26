@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { APP_DESCRIPTION, APP_NAME } from "@/constants/branding";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,15 +16,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | DoctorAssist.AI",
-    default: "DoctorAssist.AI — LinkedIn Outreach",
+    template: `%s | ${APP_NAME}`,
+    default: APP_NAME,
   },
-  description:
-    "LinkedIn outreach automation dashboard for medical oncologists — DoctorAssist.AI",
-  icons: {
-    icon: "/logo.webp",
-    shortcut: "/logo.webp",
-  },
+  description: APP_DESCRIPTION,
 };
 
 export default function RootLayout({

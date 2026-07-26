@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -20,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { DailyUsageMeters } from "@/components/layout/DailyUsageMeters";
+import { BrandMark } from "@/components/layout/BrandMark";
+import { APP_SHORT_NAME } from "@/constants/branding";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -58,16 +59,10 @@ export function Sidebar({ collapsed, onToggle, inboxUnreadCount = 0 }: SidebarPr
           collapsed && "justify-center px-0"
         )}
       >
-        <Image
-          src="/logo.webp"
-          alt="DoctorAssist.AI logo"
-          width={32}
-          height={32}
-          className="size-8 shrink-0 rounded-lg object-cover"
-        />
+        <BrandMark />
         {!collapsed && (
           <span className="font-heading text-sm font-semibold truncate">
-            DoctorAssist.AI
+            {APP_SHORT_NAME}
           </span>
         )}
       </div>

@@ -58,9 +58,9 @@ const CONDITION_FIELDS = [
   { value: "status", label: "Lead Status" },
   { value: "icp_segment", label: "ICP Segment" },
   { value: "company", label: "Company" },
-  { value: "specialty", label: "Specialty" },
+  { value: "industry", label: "Industry" },
   { value: "location", label: "Location" },
-  { value: "hospital_type", label: "Hospital Type" },
+  { value: "account_type", label: "Account Type" },
 ]
 
 const CONDITION_STATUS_VALUES = [

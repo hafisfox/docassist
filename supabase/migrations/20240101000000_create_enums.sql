@@ -42,8 +42,10 @@ CREATE TYPE activity_type AS ENUM (
   'error'
 );
 
+-- Company size tier. Superseded by 20240101000014, which remaps the original
+-- healthcare-specific segments onto these generic tiers.
 CREATE TYPE icp_segment AS ENUM (
-  'high_volume_chemo',       -- Segment A
-  'precision_oncology',      -- Segment B
-  'insurance_heavy_urban'    -- Segment C
+  'enterprise',   -- Segment A
+  'mid_market',   -- Segment B
+  'smb'           -- Segment C
 );

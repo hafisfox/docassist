@@ -28,15 +28,15 @@ interface LeadDetailProps {
 }
 
 const icpSegmentLabels: Record<IcpSegment, string> = {
-  high_volume_chemo: "High-Volume Chemo",
-  precision_oncology: "Precision Oncology",
-  insurance_heavy_urban: "Insurance-Heavy Urban",
+  enterprise: "Enterprise",
+  mid_market: "Mid-Market",
+  smb: "SMB",
 };
 
 const icpSegmentColors: Record<IcpSegment, string> = {
-  high_volume_chemo: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-  precision_oncology: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
-  insurance_heavy_urban: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
+  enterprise: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  mid_market: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+  smb: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
 };
 
 function LeadDetailSkeleton() {

@@ -1,8 +1,9 @@
-# CLAUDE.md — DoctorAssist LinkedIn Outreach Platform
+# CLAUDE.md — LinkedIn Outreach Engine
 
 ## Project Overview
-Full-stack LinkedIn outreach automation dashboard for DoctorAssist.AI (https://doctorassist.ai/).
-Target audience: Medical oncologists, hemato-oncologists, and cancer center decision-makers in India & UAE.
+Full-stack, domain-neutral LinkedIn outreach automation dashboard. The ICP is not
+baked in: targeting defaults live in `src/constants/icp.ts` and the product being
+pitched is supplied at runtime via `OUTREACH_PRODUCT_CONTEXT`.
 
 ## Tech Stack
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui
@@ -66,38 +67,6 @@ Target audience: Medical oncologists, hemato-oncologists, and cancer center deci
 - Every database operation must check for errors
 - Use transactions for multi-table operations
 
-## DoctorAssist.AI Context (for message personalization)
-DoctorAssist.AI is an agentic, multimodal clinical decision support & efficiency engine (CDSSE).
-Key value props for oncologists:
-- Reduces documentation time by up to 50%
-- Evidence-based guidance during consultations
-- ~95% accurate clinical conversation transcription
-- SOAP/H&P note generation
-- Diagnostic accuracy improvement up to 35%
-- Integrates with HMS, PACS, LIS, RIS, EHR systems
-- Point-of-care intelligence with guideline-linked suggestions
-- Currently under clinical validation, founded 2024 in Bangalore
-
-## ICP Summary (for search filters and personalization)
-
-### Primary ICP — Medical Oncologists
-- Titles: Medical Oncologist, Consultant Medical Oncology, Clinical Oncologist, Hemato-Oncologist, DM Medical Oncology
-- Senior roles: Head of Oncology, Director Oncology, Senior Consultant Oncology, CMO (Cancer Centers)
-- Location Phase 1: Mumbai, Delhi NCR, Bengaluru, Hyderabad, Chennai + UAE (Cleveland Clinic Abu Dhabi, Mediclinic, Burjeel, American Hospital Dubai)
-- Location Phase 2: Pune, Ahmedabad, Kochi, Lucknow
-- Pain points: Complex protocols, high patient load (40-80/day), chemo calculations, documentation pressure, tumor board prep
-- Buying motivation: Reduce decision fatigue, save 30-45 min/complex case, medico-legal defensibility
-
-### Target Hospital Types
-- Corporate chains: Apollo, Fortis, Manipal, Aster DM
-- Cancer centers: HCG Cancer Centre, Tata Memorial
-- UAE: Cleveland Clinic Abu Dhabi, Mediclinic, Burjeel Holdings, American Hospital Dubai
-
-### ICP Segments
-- Segment A (High-Volume Chemo Clinics): Need dosing validation, toxicity prediction, rapid docs
-- Segment B (Precision Oncology Centers): Genomic interpretation, rare mutation modeling, trial matching
-- Segment C (Insurance-Heavy Urban Practices): Documentation automation, evidence-based justification
-
 ## Environment Variables Required
 ```
 # Supabase
@@ -115,6 +84,15 @@ APIFY_API_TOKEN=
 
 # OpenAI (for message personalization)
 OPENAI_API_KEY=
+# Free-text description of the offering, injected into the AI copywriter prompt.
+# Unset => the model is told to make no product claims at all.
+OUTREACH_PRODUCT_CONTEXT=
+
+# Branding (all optional; defaults in src/constants/branding.ts)
+NEXT_PUBLIC_APP_NAME=
+NEXT_PUBLIC_APP_SHORT_NAME=
+NEXT_PUBLIC_SUPPORT_URL=
+NEXT_PUBLIC_BOOKING_URL=
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -122,11 +100,22 @@ WEBHOOK_SECRET=
 CRON_SECRET=
 ```
 
+See `.env.example` for the full annotated list (including the n8n control-plane
+variables, which this excerpt omits).
+
 ## Testing Strategy
 - Unit tests: Vitest for utils, hooks, API route handlers
 - Integration tests: Test Supabase queries with test database
 - E2E: Playwright for critical dashboard flows
 - Mock all external APIs (Unipile, Apify) in tests
+
+## Domain Neutrality
+This codebase is deliberately ICP-agnostic. When adding features:
+- Never hardcode a product name — read from `src/constants/branding.ts`
+- Never hardcode target titles/companies/locations — extend `src/constants/icp.ts`
+- Never hardcode product claims in prompts — they come from `OUTREACH_PRODUCT_CONTEXT`
+- Never add a new `{{variable}}` substitution inline — register it in
+  `src/constants/templateVariables.ts` so the picker, previews and send path stay in sync
 
 ## Important Constraints
 - Never send more than 25 connection requests per day (safety margin under LinkedIn's ~100/week)

@@ -113,7 +113,7 @@ function CampaignsContent() {
         <EmptyState
           icon={<MegaphoneIcon />}
           title="No campaigns yet"
-          description="Create your first campaign to start reaching out to oncologists on LinkedIn."
+          description="Create your first campaign to start reaching out to prospects on LinkedIn."
           action={{ label: "New Campaign", onClick: () => router.push("/campaigns/new") }}
         />
       ) : (

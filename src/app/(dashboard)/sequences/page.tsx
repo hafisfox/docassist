@@ -215,7 +215,7 @@ function SequencesContent() {
               <Label htmlFor="seq-name">Name</Label>
               <Input
                 id="seq-name"
-                placeholder="e.g. Oncologist Outreach — Phase 1"
+                placeholder="e.g. Decision Maker Outreach — Q1"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 maxLength={100}

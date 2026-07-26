@@ -35,9 +35,9 @@ const STEPS = [
 ] as const
 
 const ICP_SEGMENT_LABELS: Record<IcpSegment, string> = {
-  high_volume_chemo: "High-Volume Chemo Clinics",
-  precision_oncology: "Precision Oncology Centers",
-  insurance_heavy_urban: "Insurance-Heavy Urban Practices",
+  enterprise: "Enterprise",
+  mid_market: "Mid-Market",
+  smb: "SMB",
 }
 
 function StepIndicator({ currentStep }: { currentStep: number }) {
@@ -91,7 +91,7 @@ function StepNameDescription({
         <Label htmlFor="campaign-name">Campaign Name</Label>
         <Input
           id="campaign-name"
-          placeholder="e.g. Mumbai Oncologists — Q1 2026"
+          placeholder="e.g. Enterprise Decision Makers — Q1 2026"
           value={name}
           onChange={(e) => onChange("name", e.target.value)}
           maxLength={100}

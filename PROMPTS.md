@@ -1,4 +1,12 @@
-# DoctorAssist.AI LinkedIn Outreach — Step-by-Step Build Prompts
+# LinkedIn Outreach — Step-by-Step Build Prompts
+
+> **Historical document.** This is the original build log, written before the
+> project was de-verticalised in July 2026. It still refers to the old
+> healthcare ICP, the old product name, and the pre-rename schema
+> (`specialty`, `hospital_type`, `hospital_name`, and the
+> `high_volume_chemo`/`precision_oncology`/`insurance_heavy_urban` segments).
+> Kept for provenance — do **not** follow it as current guidance. See
+> `README.md` and `CLAUDE.md` for how the project actually works now.
 
 Copy and paste each prompt below into Claude Code **in order**. Each prompt builds on the previous one. The `CLAUDE.md` file provides persistent context so Claude Code knows the project conventions.
 

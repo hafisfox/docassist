@@ -30,16 +30,16 @@ function buildLead(overrides: Partial<Lead> = {}): Lead {
   return {
     id: "lead-1",
     user_id: "user-1",
-    full_name: "Dr. Priya Sharma",
-    first_name: "Priya",
-    last_name: "Sharma",
-    job_title: "Medical Oncologist",
-    company: "HCG Cancer Centre",
-    city: "Bengaluru",
-    country: "India",
-    specialty: "Medical Oncology",
-    headline: "Senior Consultant Medical Oncology at HCG",
-    icp_segment: "high_volume_chemo",
+    full_name: "Jordan Avery",
+    first_name: "Jordan",
+    last_name: "Avery",
+    job_title: "VP of Engineering",
+    company: "Acme Corp",
+    city: "San Francisco",
+    country: "United States",
+    industry: "B2B SaaS",
+    headline: "VP of Engineering at Acme Corp",
+    icp_segment: "enterprise",
     experience_years: 12,
     status: "new",
     source: "linkedin_search",
@@ -48,8 +48,8 @@ function buildLead(overrides: Partial<Lead> = {}): Lead {
     linkedin_provider_id: null,
     phone: null,
     email: null,
-    location: "Bengaluru, India",
-    hospital_type: null,
+    location: "San Francisco, CA",
+    account_type: null,
     icp_score: 85,
     campaign_id: null,
     enrichment_data: {},
@@ -73,7 +73,7 @@ describe("personalizeMessage", () => {
   });
 
   it("returns trimmed text from the OpenAI API (with lead)", async () => {
-    mockTextResponse("  Hi Dr. Sharma, your work at HCG is impressive.  ");
+    mockTextResponse("  Hi Jordan, your work at Acme is impressive.  ");
 
     const result = await personalizeMessage({
       template: "Hi {{name}}, your work at {{company}} is impressive.",
@@ -81,7 +81,7 @@ describe("personalizeMessage", () => {
       lead: buildLead(),
     });
 
-    expect(result).toBe("Hi Dr. Sharma, your work at HCG is impressive.");
+    expect(result).toBe("Hi Jordan, your work at Acme is impressive.");
   });
 
   it("calls OpenAI with correct model and max_tokens", async () => {
@@ -102,7 +102,7 @@ describe("personalizeMessage", () => {
 
   it("sends lead profile data in user prompt when lead is provided", async () => {
     mockTextResponse("personalized message");
-    const lead = buildLead({ full_name: "Dr. Ali Hassan", company: "Burjeel Holdings" });
+    const lead = buildLead({ full_name: "Sam Okafor", company: "Northwind Labs" });
 
     await personalizeMessage({
       template: "Hi {{name}}",
@@ -113,8 +113,8 @@ describe("personalizeMessage", () => {
     const call = mockCreate.mock.calls[0][0] as { messages: Array<{ role: string; content: string }> };
     const userPrompt = call.messages[1].content;
 
-    expect(userPrompt).toContain("Dr. Ali Hassan");
-    expect(userPrompt).toContain("Burjeel Holdings");
+    expect(userPrompt).toContain("Sam Okafor");
+    expect(userPrompt).toContain("Northwind Labs");
   });
 
   it("instructs OpenAI to keep {{variable}} placeholders when no lead is provided", async () => {

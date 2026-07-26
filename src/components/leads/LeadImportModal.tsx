@@ -41,7 +41,7 @@ const LEAD_FIELDS = [
   { value: "email", label: "Email" },
   { value: "phone", label: "Phone" },
   { value: "headline", label: "Headline" },
-  { value: "specialty", label: "Specialty" },
+  { value: "industry", label: "Industry" },
   { value: "city", label: "City" },
   { value: "country", label: "Country" },
   { value: "notes", label: "Notes" },
@@ -76,8 +76,10 @@ const FIELD_AUTO_MAP: Record<string, LeadFieldValue> = {
   phone: "phone",
   "phone number": "phone",
   headline: "headline",
-  specialty: "specialty",
-  speciality: "specialty",
+  industry: "industry",
+  // Legacy CSV headers from the pre-rename schema still map cleanly.
+  specialty: "industry",
+  speciality: "industry",
   notes: "notes",
 }
 
@@ -225,7 +227,7 @@ export function LeadImportModal() {
           email: lead.email,
           phone: lead.phone,
           headline: lead.headline,
-          specialty: lead.specialty,
+          industry: lead.industry,
           city: lead.city,
           country: lead.country,
           notes: lead.notes,
@@ -312,7 +314,7 @@ export function LeadImportModal() {
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             first_name, last_name (required) + linkedin_profile_url, job_title,
-            company, location, email, phone, headline, specialty, city, country,
+            company, location, email, phone, headline, industry, city, country,
             notes
           </p>
         </div>

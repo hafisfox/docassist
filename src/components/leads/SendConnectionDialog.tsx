@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Lead, Template } from "@/types/database";
+import { fillTemplate } from "@/constants/templateVariables";
 
 interface SendConnectionDialogProps {
   lead: Lead;
@@ -37,23 +38,7 @@ interface SettingsSummary {
 }
 
 /** Replace {{variable}} placeholders in a template body with lead field values. */
-function interpolate(body: string, lead: Lead): string {
-  const vars: Record<string, string> = {
-    first_name: lead.first_name,
-    last_name: lead.last_name,
-    full_name: lead.full_name,
-    job_title: lead.job_title ?? "",
-    company: lead.company ?? "",
-    location: lead.location ?? "",
-    city: lead.city ?? "",
-    country: lead.country ?? "",
-    specialty: lead.specialty ?? "",
-    headline: lead.headline ?? "",
-  };
-  return body.replace(/\{\{(\w+)\}\}/g, (match, key: string) =>
-    key in vars ? vars[key] : match,
-  );
-}
+const interpolate = fillTemplate;
 
 const STATUS_ALREADY_SENT: Lead["status"][] = ["invite_sent", "invite_accepted"];
 

@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       status,
       campaign_id,
       icp_segment,
+      account_type,
       location,
       search,
       sort_by,
@@ -70,6 +71,10 @@ export async function GET(request: NextRequest) {
 
     if (icp_segment) {
       query = query.eq("icp_segment", icp_segment);
+    }
+
+    if (account_type) {
+      query = query.eq("account_type", account_type);
     }
 
     if (location) {

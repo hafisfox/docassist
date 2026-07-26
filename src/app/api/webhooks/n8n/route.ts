@@ -122,8 +122,18 @@ function str(v: unknown): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
 }
 
-/** Build the upsert payload shared by lead-bearing events. */
+/**
+ * Build the upsert payload shared by lead-bearing events.
+ *
+ * The `account_name` / `industry` fields were renamed from `hospital_name` /
+ * `specialty` in migration 20240101000014, but the live n8n workflows still
+ * emit the legacy keys (their Google Sheets columns are unchanged — renaming
+ * those would break the Sheets nodes' schema check). Both spellings are
+ * accepted so ingest keeps working across the cutover in either direction.
+ */
 function leadInput(data: Record<string, unknown>, providerId: string): UpsertLeadInput {
+  const accountName = str(data.account_name) ?? str(data.hospital_name);
+
   return {
     linkedin_provider_id: providerId,
     full_name: str(data.full_name) ?? str(data.name),
@@ -131,10 +141,10 @@ function leadInput(data: Record<string, unknown>, providerId: string): UpsertLea
     linkedin_profile_url: str(data.profile_url),
     headline: str(data.headline),
     job_title: str(data.job_title) ?? str(data.title),
-    company: str(data.company) ?? str(data.hospital_name),
+    company: str(data.company) ?? accountName,
     location: str(data.location),
     country: str(data.country),
-    hospital_name: str(data.hospital_name),
+    account_name: accountName,
     segment: str(data.segment),
     region: str(data.region),
     tier: str(data.tier),

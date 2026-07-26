@@ -13,19 +13,12 @@ import {
   CheckCircleIcon,
   PlayIcon,
 } from "lucide-react"
+import {
+  TEMPLATE_SAMPLE_DATA as SAMPLE_DATA,
+  fillTemplateWithSamples,
+} from "@/constants/templateVariables"
 
-const SAMPLE_DATA: Record<string, string> = {
-  first_name: "Rahul",
-  last_name: "Sharma",
-  company: "Apollo Hospitals",
-  specialty: "Medical Oncology",
-  city: "Mumbai",
-  title: "Consultant Medical Oncologist",
-}
-
-function fillVariables(text: string): string {
-  return text.replace(/\{\{(\w+)\}\}/g, (_, key) => SAMPLE_DATA[key] ?? `{{${key}}}`)
-}
+const fillVariables = fillTemplateWithSamples
 
 const STEP_ICONS: Record<string, React.ReactNode> = {
   connection_request: <UserPlusIcon className="size-4" />,

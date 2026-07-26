@@ -8,8 +8,8 @@
 -- leads).
 
 ALTER TABLE leads
-  ADD COLUMN IF NOT EXISTS hospital_name TEXT,
-  ADD COLUMN IF NOT EXISTS segment       TEXT,        -- n8n weekday segment (CMO/CIO/Doctor/Admin)
+  ADD COLUMN IF NOT EXISTS account_name  TEXT,        -- organisation the lead belongs to
+  ADD COLUMN IF NOT EXISTS segment       TEXT,        -- n8n weekday persona segment
   ADD COLUMN IF NOT EXISTS region        TEXT,        -- derived region for send-window logic
   ADD COLUMN IF NOT EXISTS tier          TEXT,        -- qualifier tier (A/B)
   ADD COLUMN IF NOT EXISTS sequence_step INTEGER,     -- current nurture step in 3_CONNECTIONS

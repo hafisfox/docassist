@@ -1,5 +1,5 @@
 -- seed.sql
--- Default oncologist outreach sequence template
+-- Default outreach sequence template
 -- This seed requires a user to exist. It uses a placeholder user_id that should
 -- be replaced with the actual user's UUID after first sign-up, or run via a
 -- Supabase Edge Function that injects auth.uid().
@@ -29,9 +29,9 @@ BEGIN
   VALUES (
     gen_random_uuid(),
     v_user_id,
-    'Oncologist Connection Request',
+    'Connection Request',
     'connection_request',
-    'Hi {{first_name}}, I noticed your work at {{company}} in oncology. We''re building an AI decision support tool designed for clinical teams like yours — would love to connect and share insights.',
+    'Hi {{first_name}}, I came across your work at {{company}} and thought it''d be worth connecting — we work with teams tackling similar problems. Would be glad to swap notes.',
     ARRAY['first_name', 'company']
   )
   RETURNING id INTO v_template_connect_id;
@@ -40,10 +40,10 @@ BEGIN
   VALUES (
     gen_random_uuid(),
     v_user_id,
-    'Oncologist Intro Message',
+    'Intro Message',
     'message',
-    'Thanks for connecting, {{first_name}}! I''m with DoctorAssist.AI — we help oncologists cut documentation time by 50% and get real-time, evidence-based treatment suggestions at the point of care. Given your role at {{company}}, I thought this might resonate. Would you be open to a quick 15-min walkthrough?',
-    ARRAY['first_name', 'company']
+    'Thanks for connecting, {{first_name}}! Quick bit of context on why I reached out — teams in a {{job_title}} seat usually tell us the same few things are eating their week, and that''s the problem we work on. Worth a 15-minute call to see whether it maps to how {{company}} runs things?',
+    ARRAY['first_name', 'job_title', 'company']
   )
   RETURNING id INTO v_template_msg1_id;
 
@@ -51,10 +51,10 @@ BEGIN
   VALUES (
     gen_random_uuid(),
     v_user_id,
-    'Oncologist Follow-up',
+    'Follow-up',
     'follow_up',
-    'Hi {{first_name}}, just following up — I know oncologists deal with heavy patient loads. We''re currently validating with teams at major cancer centers in India. If the timing''s right, I''d be happy to show you what we''re building. No pressure either way!',
-    ARRAY['first_name']
+    'Hi {{first_name}}, just following up on my note. Happy to put together a short walkthrough tailored to {{company}} if it''s useful — and equally happy to leave it if the timing''s wrong. Would Thursday or Friday work for 15 minutes?',
+    ARRAY['first_name', 'company']
   )
   RETURNING id INTO v_template_followup_id;
 
@@ -63,8 +63,8 @@ BEGIN
   VALUES (
     gen_random_uuid(),
     v_user_id,
-    'Oncologist Outreach (5-step)',
-    'Default outreach sequence for medical oncologists: connect → intro message → follow-up',
+    'Standard Outreach (5-step)',
+    'Default outreach sequence: connect → intro message → follow-up',
     TRUE
   )
   RETURNING id INTO v_sequence_id;
@@ -76,7 +76,7 @@ BEGIN
     1,
     'connection_request',
     v_template_connect_id,
-    'Hi {{first_name}}, I noticed your work at {{company}} in oncology. We''re building an AI decision support tool designed for clinical teams like yours — would love to connect and share insights.'
+    'Hi {{first_name}}, I came across your work at {{company}} and thought it''d be worth connecting — we work with teams tackling similar problems. Would be glad to swap notes.'
   );
 
   -- Step 2: Delay 2 days (wait for acceptance)
@@ -95,7 +95,7 @@ BEGIN
     3,
     'message',
     v_template_msg1_id,
-    'Thanks for connecting, {{first_name}}! I''m with DoctorAssist.AI — we help oncologists cut documentation time by 50% and get real-time, evidence-based treatment suggestions at the point of care. Given your role at {{company}}, I thought this might resonate. Would you be open to a quick 15-min walkthrough?'
+    'Thanks for connecting, {{first_name}}! Quick bit of context on why I reached out — teams in a {{job_title}} seat usually tell us the same few things are eating their week, and that''s the problem we work on. Worth a 15-minute call to see whether it maps to how {{company}} runs things?'
   );
 
   -- Step 4: Delay 3 days
@@ -114,7 +114,7 @@ BEGIN
     5,
     'message',
     v_template_followup_id,
-    'Hi {{first_name}}, just following up — I know oncologists deal with heavy patient loads. We''re currently validating with teams at major cancer centers in India. If the timing''s right, I''d be happy to show you what we''re building. No pressure either way!'
+    'Hi {{first_name}}, just following up on my note. Happy to put together a short walkthrough tailored to {{company}} if it''s useful — and equally happy to leave it if the timing''s wrong. Would Thursday or Friday work for 15 minutes?'
   );
 
   RAISE NOTICE 'Seed data created successfully for user %', v_user_id;

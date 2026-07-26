@@ -18,9 +18,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const ICP_SEGMENTS = [
-  { value: "high_volume_chemo", label: "High-Volume Chemo Clinic" },
-  { value: "precision_oncology", label: "Precision Oncology Center" },
-  { value: "insurance_heavy_urban", label: "Insurance-Heavy Urban Practice" },
+  { value: "enterprise", label: "Enterprise" },
+  { value: "mid_market", label: "Mid-Market" },
+  { value: "smb", label: "SMB" },
 ] as const;
 
 type FormFields = {
@@ -151,16 +151,16 @@ export default function NewLeadPage() {
                 id="job_title"
                 value={form.job_title ?? ""}
                 onChange={(e) => set("job_title", e.target.value)}
-                placeholder="Medical Oncologist"
+                placeholder="VP of Engineering"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="company">Hospital / Organization</Label>
+              <Label htmlFor="company">Company</Label>
               <Input
                 id="company"
                 value={form.company ?? ""}
                 onChange={(e) => set("company", e.target.value)}
-                placeholder="Apollo Hospitals"
+                placeholder="Acme Corp"
               />
             </div>
             <div className="space-y-1.5">
@@ -170,7 +170,7 @@ export default function NewLeadPage() {
                 type="email"
                 value={form.email ?? ""}
                 onChange={(e) => set("email", e.target.value)}
-                placeholder="dr.kumar@example.com"
+                placeholder="priya@example.com"
               />
             </div>
             <div className="space-y-1.5">
@@ -188,7 +188,7 @@ export default function NewLeadPage() {
                 id="headline"
                 value={form.headline ?? ""}
                 onChange={(e) => set("headline", e.target.value)}
-                placeholder="Senior Consultant Medical Oncology at Apollo Hospitals"
+                placeholder="VP of Engineering at Acme Corp"
               />
             </div>
           </CardContent>

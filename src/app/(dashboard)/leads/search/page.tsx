@@ -22,7 +22,7 @@ export default function LeadSearchPage() {
         <div>
           <h1 className="text-xl font-semibold">Search LinkedIn</h1>
           <p className="text-sm text-muted-foreground">
-            Find and add oncologists from LinkedIn to your leads
+            Find and add prospects from LinkedIn to your leads
           </p>
         </div>
       </div>

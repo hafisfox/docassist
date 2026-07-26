@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { VariableInserter } from "@/components/templates/VariableInserter"
+import { fillTemplateWithSamples } from "@/constants/templateVariables"
 import { Badge } from "@/components/ui/badge"
 import {
   Sheet,
@@ -148,7 +149,7 @@ export function TemplateEditor({
             <Label htmlFor="template-name">Name</Label>
             <Input
               id="template-name"
-              placeholder="e.g. Initial Outreach — Oncologist"
+              placeholder="e.g. Initial Outreach — Decision Makers"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={100}
@@ -240,13 +241,7 @@ export function TemplateEditor({
             <div className="grid gap-1.5">
               <Label>Preview</Label>
               <div className="rounded-lg border bg-muted/50 p-3 text-sm whitespace-pre-wrap">
-                {body
-                  .replace(/\{\{first_name\}\}/g, "Rahul")
-                  .replace(/\{\{last_name\}\}/g, "Sharma")
-                  .replace(/\{\{company\}\}/g, "Apollo Hospitals")
-                  .replace(/\{\{specialty\}\}/g, "Medical Oncology")
-                  .replace(/\{\{city\}\}/g, "Mumbai")
-                  .replace(/\{\{title\}\}/g, "Consultant Medical Oncologist")}
+                {fillTemplateWithSamples(body)}
               </div>
             </div>
           )}
