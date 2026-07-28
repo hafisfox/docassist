@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
+import { analyticsRangeSchema } from "@/lib/validators";
 import type { Activity, LeadStatus, ActivityType } from "@/types/database";
 
 // ─── Response types ────────────────────────────────────────────────────────────
@@ -194,9 +195,27 @@ export async function GET(request: Request) {
     let startDate: Date;
     let endDate = now;
 
-    if (fromParam && toParam) {
-      startDate = new Date(fromParam + "T00:00:00.000Z");
-      endDate = new Date(toParam + "T23:59:59.999Z");
+    // `from`/`to` are raw query params. Without validation, `?from=abc` yields
+    // an Invalid Date whose .toISOString() throws RangeError → generic 500.
+    const parsedRange =
+      fromParam && toParam
+        ? analyticsRangeSchema.safeParse({ from: fromParam, to: toParam })
+        : null;
+
+    if (fromParam && toParam && !parsedRange?.success) {
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          details: { range: ["`from` and `to` must be YYYY-MM-DD dates"] },
+          correlationId,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (parsedRange?.success) {
+      startDate = new Date(parsedRange.data.from + "T00:00:00.000Z");
+      endDate = new Date(parsedRange.data.to + "T23:59:59.999Z");
     } else {
       const days = daysParam
         ? Math.min(Math.max(parseInt(daysParam, 10) || 30, 1), 365)
@@ -427,9 +446,13 @@ export async function GET(request: Request) {
 
     // ── Time series + daily activity ───────────────────────────────────────────
 
-    const numDays = Math.round(
-      (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)
-    );
+    // Inclusive of both endpoints. Without the +1 the loop emitted one fewer
+    // point than the query fetched, so the oldest day in the range was never
+    // rendered (a "last 30 days" chart silently showed 29).
+    const numDays =
+      Math.floor(
+        (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)
+      ) + 1;
     const clampedDays = Math.max(1, Math.min(numDays, 365));
 
     const timeSeries: TimeSeriesPoint[] = [];

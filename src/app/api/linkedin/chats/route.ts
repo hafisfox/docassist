@@ -43,9 +43,29 @@ export async function GET(request: NextRequest) {
     const { cursor } = parsed.data;
     logCtx.info({ cursor }, "listing linkedin chats");
 
+    // ── Resolve the caller's Unipile account ─────────────────────────────────
+    // See sync-inbox: undefined falls back to the env account, which is "" when
+    // unset, so an account configured only in Settings would be ignored.
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("unipile_account_id")
+      .eq("user_id", user.id)
+      .single();
+
+    const accountId = settings?.unipile_account_id;
+    if (!accountId) {
+      return NextResponse.json(
+        {
+          error: "Unipile account not configured. Please add your Account ID in Settings.",
+          correlationId,
+        },
+        { status: 422 },
+      );
+    }
+
     // ── Fetch chats via Unipile ──────────────────────────────────────────────
     const client = getUnipileClient();
-    const chatsResponse = await client.getChats(undefined, cursor, correlationId);
+    const chatsResponse = await client.getChats(accountId, cursor, correlationId);
 
     logCtx.info(
       { count: chatsResponse.items.length, hasMore: !!chatsResponse.cursor },

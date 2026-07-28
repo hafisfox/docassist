@@ -46,13 +46,37 @@ function buildSettings(overrides: Partial<MockSettings> = {}): MockSettings {
   };
 }
 
-/** Builds a chainable Supabase mock. `updateError` and `fetchError` are optional. */
+/**
+ * Builds a chainable Supabase mock.
+ *
+ * `updateError` covers both writes the limiter performs: the daily-counter
+ * reset (still a plain `.update()`) and the counter increment (now the
+ * `increment_settings_counter` RPC). The RPC mock mirrors the SQL function by
+ * returning the post-increment value, so tests exercise the same
+ * "increment, then roll back if over limit" path as production.
+ */
 function buildMockSupabase(
   settings: MockSettings | null,
   opts: { fetchError?: object; updateError?: object } = {}
 ) {
+  // Mutable copy so successive RPC calls compound, as the real column does.
+  const counters: Record<string, number> = {
+    invites_sent_today: settings?.invites_sent_today ?? 0,
+    messages_sent_today: settings?.messages_sent_today ?? 0,
+    profile_views_today: settings?.profile_views_today ?? 0,
+  };
+
+  // The only `.update()` the limiter still issues is the daily-counter reset,
+  // so applying it to the mock counters keeps the RPC consistent with the DB.
   const updateChain = {
-    eq: vi.fn().mockResolvedValue({ data: null, error: opts.updateError ?? null }),
+    eq: vi.fn(async () => {
+      if (!opts.updateError) {
+        counters.invites_sent_today = 0;
+        counters.messages_sent_today = 0;
+        counters.profile_views_today = 0;
+      }
+      return { data: null, error: opts.updateError ?? null };
+    }),
   };
 
   const selectChain = {
@@ -69,7 +93,20 @@ function buildMockSupabase(
     update: vi.fn().mockReturnValue(updateChain),
   });
 
-  return { from: fromMock } as unknown as Parameters<typeof checkAndIncrementLimit>[0];
+  const rpcMock = vi.fn(
+    async (_fn: string, args: { p_field: string; p_delta: number }) => {
+      if (opts.updateError) {
+        return { data: null, error: opts.updateError };
+      }
+      counters[args.p_field] = (counters[args.p_field] ?? 0) + args.p_delta;
+      return { data: counters[args.p_field], error: null };
+    }
+  );
+
+  return {
+    from: fromMock,
+    rpc: rpcMock,
+  } as unknown as Parameters<typeof checkAndIncrementLimit>[0];
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -178,6 +215,41 @@ describe("checkAndIncrementLimit", () => {
     expect(result.allowed).toBe(true);
     expect(result.current).toBe(1);
     expect(result.remaining).toBe(24);
+  });
+
+  it("increments through the atomic RPC rather than a read-modify-write", async () => {
+    const supabase = buildMockSupabase(buildSettings({ invites_sent_today: 3 }));
+    await checkAndIncrementLimit(supabase, "user-1", "invite");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rpc = (supabase as any).rpc as ReturnType<typeof vi.fn>;
+    expect(rpc).toHaveBeenCalledWith("increment_settings_counter", {
+      p_user_id: "user-1",
+      p_field: "invites_sent_today",
+      p_delta: 1,
+    });
+  });
+
+  it("rolls the increment back when a concurrent send won the last slot", async () => {
+    // Pre-check passes at 24 < 25, but another caller lands first, so the
+    // atomic increment returns 26 — over the limit.
+    const settings = buildSettings({ invites_sent_today: 24 });
+    const supabase = buildMockSupabase(settings);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rpc = (supabase as any).rpc as ReturnType<typeof vi.fn>;
+    rpc.mockResolvedValueOnce({ data: 26, error: null });
+
+    const result = await checkAndIncrementLimit(supabase, "user-1", "invite");
+
+    expect(result.allowed).toBe(false);
+    expect(result.remaining).toBe(0);
+    // The slot must be handed back, not left inflated.
+    expect(rpc).toHaveBeenLastCalledWith("increment_settings_counter", {
+      p_user_id: "user-1",
+      p_field: "invites_sent_today",
+      p_delta: -1,
+    });
   });
 });
 

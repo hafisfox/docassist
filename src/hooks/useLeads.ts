@@ -246,11 +246,14 @@ export function useLeads() {
   useEffect(() => {
     const supabase = supabaseRef.current;
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    // Guards against a teardown landing before getUser() resolves, which would
+    // otherwise leak the channel created after it (see useRealtimeMessages).
+    let cancelled = false;
 
     async function subscribe() {
       const { data } = await supabase.auth.getUser();
       const userId = data.user?.id;
-      if (!userId) return;
+      if (!userId || cancelled) return;
 
       channel = supabase
         .channel("leads-list-realtime")
@@ -271,13 +274,20 @@ export function useLeads() {
           },
         )
         .subscribe();
+
+      if (cancelled) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
     }
 
     subscribe();
 
     return () => {
+      cancelled = true;
       if (channel) {
         supabase.removeChannel(channel);
+        channel = null;
       }
     };
   }, []);

@@ -44,8 +44,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Fetch account ID from user settings ──────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data: settings } = await (supabase as any)
+    const { data: settings } = await supabase
       .from("settings")
       .select("unipile_account_id")
       .eq("user_id", user.id)

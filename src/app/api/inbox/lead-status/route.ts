@@ -51,16 +51,14 @@ export async function POST(request: Request) {
     const { chat_id, provider_id, status } = parsed.data;
 
     // ── Resolve the lead: chat_id first, then provider_id fallback ──────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2 generic resolution
-    let { data: lead } = await (supabase as any)
+    let { data: lead } = await supabase
       .from("leads")
       .select("*")
       .eq("unipile_chat_id", chat_id)
       .maybeSingle();
 
     if (!lead && provider_id) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from("leads")
         .select("*")
         .eq("linkedin_provider_id", provider_id)
@@ -84,8 +82,7 @@ export async function POST(request: Request) {
     const updateFields: Record<string, unknown> = { status };
     if (!typedLead.unipile_chat_id) updateFields.unipile_chat_id = chat_id;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: updateError } = await (supabase as any)
+    const { error: updateError } = await supabase
       .from("leads")
       .update(updateFields)
       .eq("id", typedLead.id);
@@ -100,8 +97,7 @@ export async function POST(request: Request) {
     }
 
     // ── Log activity ───────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from("activities").insert({
+    await supabase.from("activities").insert({
       user_id: user.id,
       lead_id: typedLead.id,
       campaign_id: typedLead.campaign_id ?? null,

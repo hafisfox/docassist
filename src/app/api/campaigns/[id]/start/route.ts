@@ -91,8 +91,7 @@ export async function POST(
 
     if (campaign.status === "paused") {
       // ── Re-activate paused enrollments (preserve current_step) ─────────
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: reactivateError } = await (supabase as any)
+      const { error: reactivateError } = await supabase
         .from("sequence_enrollments")
         .update({
           status: "active",
@@ -111,8 +110,7 @@ export async function POST(
       }
 
       // Count re-activated enrollments
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count } = await (supabase as any)
+      const { count } = await supabase
         .from("sequence_enrollments")
         .select("id", { count: "exact", head: true })
         .eq("campaign_id", id)
@@ -144,8 +142,7 @@ export async function POST(
       const firstStep = steps[0];
 
       // Fetch all leads for this campaign
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: leadsData, error: leadsError } = await (supabase as any)
+      const { data: leadsData, error: leadsError } = await supabase
         .from("leads")
         .select("id, status")
         .eq("campaign_id", id);
@@ -181,8 +178,7 @@ export async function POST(
       }));
 
       // Upsert — on conflict (lead_id, campaign_id) reset the enrollment to active from step 1
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: enrollError } = await (supabase as any)
+      const { error: enrollError } = await supabase
         .from("sequence_enrollments")
         .upsert(enrollments, { onConflict: "lead_id,campaign_id" });
 
@@ -197,8 +193,7 @@ export async function POST(
       enrolledCount = eligible.length;
 
       // Update total_leads denormalised counter
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
+      await supabase
         .from("campaigns")
         .update({ total_leads: leads.length })
         .eq("id", id);
@@ -206,8 +201,7 @@ export async function POST(
 
     // ── Update campaign status → active ───────────────────────────────────
     // Keep the original started_at when resuming from paused
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: updatedData, error: updateError } = await (supabase as any)
+    const { data: updatedData, error: updateError } = await supabase
       .from("campaigns")
       .update({
         status: "active",
@@ -223,8 +217,7 @@ export async function POST(
     }
 
     // ── Log activity ──────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from("activities").insert({
+    await supabase.from("activities").insert({
       user_id: user.id,
       lead_id: null,
       campaign_id: id,

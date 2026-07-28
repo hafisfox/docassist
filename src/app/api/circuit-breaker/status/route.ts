@@ -18,7 +18,12 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return NextResponse.json(getCircuitBreaker().getStatus());
+  // Force a read: this endpoint exists to report the shared state, and the
+  // invocation serving it is rarely the one that changed it.
+  const breaker = getCircuitBreaker();
+  await breaker.hydrate(true);
+
+  return NextResponse.json(breaker.getStatus());
 }
 
 /**
@@ -54,8 +59,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  getCircuitBreaker().reset();
+  const breaker = getCircuitBreaker();
+  await breaker.reset();
   log.info({ userId: user.id }, "circuit breaker manually reset by user");
 
-  return NextResponse.json(getCircuitBreaker().getStatus());
+  return NextResponse.json(breaker.getStatus());
 }

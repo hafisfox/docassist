@@ -28,6 +28,7 @@ import {
   markInviteAccepted,
   markInviteSent,
   markInviteExpired,
+  incrementCampaignStat,
   type UpsertLeadInput,
 } from "@/lib/webhooks/leadSync";
 
@@ -162,11 +163,11 @@ async function resolveLead(
     if (create && ownerId) {
       return upsertLeadByProvider(supabase, ownerId, leadInput(data, providerId));
     }
-    const found = await findLeadByProviderId(supabase, providerId);
+    const found = await findLeadByProviderId(supabase, providerId, ownerId);
     if (found) return found;
   }
   const chatId = str(data.chat_id);
-  if (chatId) return findLeadByChatId(supabase, chatId);
+  if (chatId) return findLeadByChatId(supabase, chatId, ownerId);
   return null;
 }
 
@@ -261,11 +262,12 @@ async function routeEvent(
       }
 
       if (lead.campaign_id) {
-        await supabase.rpc("increment_campaign_stat", {
-          p_campaign_id: lead.campaign_id,
-          p_field: "messages_sent",
-          p_delta: 1,
-        });
+        await incrementCampaignStat(
+          supabase,
+          lead.campaign_id,
+          "messages_sent",
+          correlationId,
+        );
       }
       return;
     }
@@ -316,11 +318,12 @@ async function routeEvent(
         metadata: { warmth, correlation_id: correlationId },
       });
       if (isHot && lead.campaign_id) {
-        await supabase.rpc("increment_campaign_stat", {
-          p_campaign_id: lead.campaign_id,
-          p_field: "positive_replies",
-          p_delta: 1,
-        });
+        await incrementCampaignStat(
+          supabase,
+          lead.campaign_id,
+          "positive_replies",
+          correlationId,
+        );
       }
       return;
     }

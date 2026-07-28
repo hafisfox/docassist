@@ -160,6 +160,36 @@ function verifySignature(header: string, secret: string): boolean {
 
 // ── Handlers (lookup + delegate to shared leadSync) ────────────────────────────
 
+/**
+ * Map the webhook's Unipile account back to its owner so lead lookups are
+ * tenant-scoped. This client is service-role, so without a user_id filter a
+ * provider_id or chat_id shared by two tenants resolves ambiguously.
+ * Returns null when the account is unknown; lookups then fall back to unscoped.
+ */
+async function resolveAccountOwner(
+  supabase: DB,
+  accountId: string | undefined,
+): Promise<string | null> {
+  if (!accountId) return null;
+
+  const { data, error } = await supabase
+    .from("settings")
+    .select("user_id")
+    .eq("unipile_account_id", accountId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    withCorrelationId(createCorrelationId()).error(
+      { error, accountId },
+      "failed to resolve unipile account owner",
+    );
+    return null;
+  }
+
+  return (data as { user_id: string } | null)?.user_id ?? null;
+}
+
 async function handleNewMessage(
   supabase: DB,
   payload: UnipileMessageReceivedPayload,
@@ -167,10 +197,11 @@ async function handleNewMessage(
 ): Promise<void> {
   const log = withCorrelationId(correlationId);
   const { id: messageId, chat_id, text, sender, timestamp } = payload.data;
+  const ownerId = await resolveAccountOwner(supabase, payload.account_id);
 
-  let lead = chat_id ? await findLeadByChatId(supabase, chat_id) : null;
+  let lead = chat_id ? await findLeadByChatId(supabase, chat_id, ownerId) : null;
   if (!lead && sender.provider_id) {
-    lead = await findLeadByProviderId(supabase, sender.provider_id);
+    lead = await findLeadByProviderId(supabase, sender.provider_id, ownerId);
   }
   if (!lead) {
     log.warn({ chatId: chat_id, senderId: sender.provider_id }, "no lead for inbound message — skipping");
@@ -194,8 +225,9 @@ async function handleNewRelation(
 ): Promise<void> {
   const log = withCorrelationId(correlationId);
   const { provider_id } = payload.data;
+  const ownerId = await resolveAccountOwner(supabase, payload.account_id);
 
-  const lead = await findLeadByProviderId(supabase, provider_id);
+  const lead = await findLeadByProviderId(supabase, provider_id, ownerId);
   if (!lead) {
     log.warn({ providerId: provider_id }, "no lead for relation.new — skipping");
     return;

@@ -52,7 +52,10 @@ export async function personalizeMessage({
   category,
   lead,
 }: PersonalizeOptions): Promise<string> {
-  const charLimit = CHAR_LIMITS[category]
+  // `templates.category` is a free-text TEXT column, so a row can hold a value
+  // outside this union. Without the fallback the prompt read
+  // "Strictly under undefined characters".
+  const charLimit = CHAR_LIMITS[category] ?? CHAR_LIMITS.message
 
   let userPrompt: string
 

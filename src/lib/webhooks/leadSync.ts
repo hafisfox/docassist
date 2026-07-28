@@ -9,16 +9,47 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { withCorrelationId } from "@/lib/logger";
+import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import type {
   Database,
   Lead,
   LeadStatus,
   ActivityType,
+  CampaignStatField,
 } from "@/types/database";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<Database> | any;
+
+// ── Campaign stat counters ────────────────────────────────────────────────────
+
+/**
+ * Wrapper around the increment_campaign_stat RPC.
+ *
+ * The SQL function whitelists column names and raises on anything else.
+ * supabase-js surfaces a PL/pgSQL exception as `.error` instead of throwing,
+ * so discarding the return value silently swallows a bad `p_field` — which is
+ * exactly how `positive_replies` went unrecorded. Always route through here.
+ */
+export async function incrementCampaignStat(
+  supabase: DB,
+  campaignId: string,
+  field: CampaignStatField,
+  correlationId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("increment_campaign_stat", {
+    p_campaign_id: campaignId,
+    p_field: field,
+    p_delta: 1,
+  });
+
+  if (error) {
+    withCorrelationId(correlationId).error(
+      { error, campaignId, field },
+      "failed to increment campaign stat",
+    );
+  }
+}
 
 // ── Opt-out detection ─────────────────────────────────────────────────────────
 
@@ -44,28 +75,60 @@ export function detectOptOut(text: string | null | undefined): boolean {
 
 // ── Lead lookup ────────────────────────────────────────────────────────────────
 
+/**
+ * Both lookups run on the service-role client, so RLS does NOT scope them.
+ * Pass `userId` wherever the owner is known:
+ *
+ *  - `linkedin_provider_id` is unique only per (user_id, provider_id)
+ *    (ux_leads_user_provider), so two tenants can legitimately hold the same
+ *    provider. Unscoped, `.maybeSingle()` then errors with PGRST116 and — with
+ *    the error discarded — the event looks like "no such lead" and is dropped.
+ *  - `unipile_chat_id` has no uniqueness constraint at all, so an unscoped
+ *    match can return another tenant's row, and the caller would then write
+ *    messages and activities under that user's id.
+ *
+ * `limit(1)` keeps a duplicate from raising, and the error is now inspected so
+ * a genuine failure is logged rather than silently read as "not found".
+ */
+async function findLead(
+  supabase: DB,
+  column: "unipile_chat_id" | "linkedin_provider_id",
+  value: string,
+  userId: string | null | undefined,
+): Promise<Lead | null> {
+  let query = supabase.from("leads").select("*").eq(column, value);
+  if (userId) query = query.eq("user_id", userId);
+
+  const { data, error } = await query
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    withCorrelationId(createCorrelationId()).error(
+      { error, column, scoped: !!userId },
+      "lead lookup failed",
+    );
+    return null;
+  }
+
+  return (data as Lead | null) ?? null;
+}
+
 export async function findLeadByChatId(
   supabase: DB,
   chatId: string,
+  userId?: string | null,
 ): Promise<Lead | null> {
-  const { data } = await supabase
-    .from("leads")
-    .select("*")
-    .eq("unipile_chat_id", chatId)
-    .maybeSingle();
-  return (data as Lead | null) ?? null;
+  return findLead(supabase, "unipile_chat_id", chatId, userId);
 }
 
 export async function findLeadByProviderId(
   supabase: DB,
   providerId: string,
+  userId?: string | null,
 ): Promise<Lead | null> {
-  const { data } = await supabase
-    .from("leads")
-    .select("*")
-    .eq("linkedin_provider_id", providerId)
-    .maybeSingle();
-  return (data as Lead | null) ?? null;
+  return findLead(supabase, "linkedin_provider_id", providerId, userId);
 }
 
 // ── Owner resolution (n8n leads have no user session) ──────────────────────────
@@ -299,11 +362,12 @@ export async function recordInboundMessage(
   });
 
   if (lead.campaign_id) {
-    await supabase.rpc("increment_campaign_stat", {
-      p_campaign_id: lead.campaign_id,
-      p_field: "replies_received",
-      p_delta: 1,
-    });
+    await incrementCampaignStat(
+      supabase,
+      lead.campaign_id,
+      "replies_received",
+      correlationId,
+    );
   }
 
   log.info({ leadId: lead.id, newStatus, isOptOut }, "inbound message recorded");
@@ -461,11 +525,12 @@ export async function markInviteAccepted(
   });
 
   if (lead.campaign_id) {
-    await supabase.rpc("increment_campaign_stat", {
-      p_campaign_id: lead.campaign_id,
-      p_field: "invites_accepted",
-      p_delta: 1,
-    });
+    await incrementCampaignStat(
+      supabase,
+      lead.campaign_id,
+      "invites_accepted",
+      correlationId,
+    );
   }
 
   log.info({ leadId: lead.id, providerId }, "invite acceptance recorded");
@@ -505,11 +570,12 @@ export async function markInviteSent(
   });
 
   if (lead.campaign_id) {
-    await supabase.rpc("increment_campaign_stat", {
-      p_campaign_id: lead.campaign_id,
-      p_field: "invites_sent",
-      p_delta: 1,
-    });
+    await incrementCampaignStat(
+      supabase,
+      lead.campaign_id,
+      "invites_sent",
+      correlationId,
+    );
   }
 }
 

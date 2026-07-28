@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createTemplateSchema, listTemplatesQuerySchema } from "@/lib/validators";
+import { createTemplateSchema, listTemplatesQuerySchema, escapeOrFilterValue } from "@/lib/validators";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { AppError } from "@/lib/errors";
 import type { Template } from "@/types/database";
@@ -53,8 +53,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      const s = escapeOrFilterValue(search);
       query = query.or(
-        `name.ilike.%${search}%,body.ilike.%${search}%`,
+        `name.ilike."%${s}%",body.ilike."%${s}%"`,
       );
     }
 
@@ -138,8 +139,7 @@ export async function POST(request: Request) {
     const variableMatches = parsed.data.body.match(/\{\{(\w+)\}\}/g) ?? [];
     const variables = [...new Set(variableMatches.map((v) => v.replace(/\{\{|\}\}/g, "")))];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data, error: dbError } = await (supabase as any)
+    const { data, error: dbError } = await supabase
       .from("templates")
       .insert({
         user_id: user.id,

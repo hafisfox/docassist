@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createCampaignSchema, listCampaignsQuerySchema } from "@/lib/validators";
+import { createCampaignSchema, listCampaignsQuerySchema, escapeOrFilterValue } from "@/lib/validators";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { AppError } from "@/lib/errors";
 import type { Campaign, Lead } from "@/types/database";
@@ -55,8 +55,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      const s = escapeOrFilterValue(search);
       query = query.or(
-        `name.ilike.%${search}%,description.ilike.%${search}%`,
+        `name.ilike."%${s}%",description.ilike."%${s}%"`,
       );
     }
 
@@ -85,8 +86,7 @@ export async function GET(request: NextRequest) {
     let leadCounts: Record<string, number> = {};
 
     if (campaignIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-      const { data: leads, error: leadsError } = await (supabase as any)
+      const { data: leads, error: leadsError } = await supabase
         .from("leads")
         .select("campaign_id")
         .in("campaign_id", campaignIds);
@@ -178,8 +178,7 @@ export async function POST(request: Request) {
     );
 
     // ── Insert ───────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data, error: dbError } = await (supabase as any)
+    const { data, error: dbError } = await supabase
       .from("campaigns")
       .insert({
         user_id: user.id,

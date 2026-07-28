@@ -34,8 +34,24 @@ import type {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Maximum enrollments processed per executor run */
-const BATCH_SIZE = 50;
+/**
+ * Maximum enrollments processed per executor run.
+ *
+ * Sized to what actually fits the cron window, not to what we'd like to send.
+ * Each enrollment costs a 30–120 s action delay plus a 3–10 s inter-enrollment
+ * delay, and the route's maxDuration is 300 s — so ~2 (worst case) to ~9 (best
+ * case) complete per run. Claiming 50 meant ~40 sat claimed-but-untouched and
+ * invisible until the claim expired, cutting effective throughput rather than
+ * raising it.
+ */
+const BATCH_SIZE = 10;
+
+/**
+ * Wall-clock budget for one run. Kept under the route's `maxDuration = 300`
+ * so the executor stops starting new enrollments and releases the rest of its
+ * claim, instead of being killed mid-step with rows still claimed.
+ */
+const RUN_BUDGET_MS = 240_000;
 /** Random inter-enrollment delay to pace Unipile API calls */
 const BETWEEN_MIN_MS = 3_000;
 const BETWEEN_MAX_MS = 10_000;
@@ -74,8 +90,7 @@ export async function runSequenceExecutor(
     log.error("circuit breaker OPENED — pausing all active campaigns");
     const now = new Date().toISOString();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: activeCampaigns } = await (supabase as any)
+    const { data: activeCampaigns } = await supabase
       .from("campaigns")
       .select("id")
       .eq("status", "active");
@@ -85,16 +100,14 @@ export async function runSequenceExecutor(
     const ids = (activeCampaigns as { id: string }[]).map((c) => c.id);
 
     // Pause all active sequence enrollments for these campaigns
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
+    await supabase
       .from("sequence_enrollments")
       .update({ status: "paused" })
       .in("campaign_id", ids)
       .eq("status", "active");
 
     // Pause the campaigns themselves
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
+    await supabase
       .from("campaigns")
       .update({ status: "paused", paused_at: now })
       .in("id", ids);
@@ -106,6 +119,10 @@ export async function runSequenceExecutor(
   });
 
   // Bail early if the circuit is already OPEN
+  // The circuit is shared state; this cron invocation may never have seen the
+  // failures that opened it.
+  await cb.hydrate(true);
+
   if (cb.getStatus().state === "OPEN") {
     log.warn("circuit breaker OPEN — sequence executor skipped");
     return { processed: 0, succeeded: 0, failed: 0, skipped: 0 };
@@ -115,15 +132,29 @@ export async function runSequenceExecutor(
   log.info({ count: enrollments.length }, "fetched due enrollments");
 
   const result: ExecutionResult = {
-    processed: enrollments.length,
+    processed: 0,
     succeeded: 0,
     failed: 0,
     skipped: 0,
   };
 
-  for (let i = 0; i < enrollments.length; i++) {
+  const deadline = Date.now() + RUN_BUDGET_MS;
+  let i = 0;
+
+  for (; i < enrollments.length; i++) {
+    // Stop before starting work we can't finish: an enrollment costs up to
+    // ~130 s, and being killed mid-step leaves the row claimed.
+    if (Date.now() >= deadline) {
+      log.warn(
+        { processed: result.processed, remaining: enrollments.length - i },
+        "run budget exhausted — releasing remaining claims"
+      );
+      break;
+    }
+
     const enrollment = enrollments[i];
     const eid = createCorrelationId();
+    result.processed++;
 
     try {
       const outcome = await executeEnrollmentStep(supabase, enrollment, eid);
@@ -146,8 +177,41 @@ export async function runSequenceExecutor(
     }
   }
 
+  // Hand back anything we claimed but never touched so the next tick picks it
+  // up immediately, rather than waiting out CLAIM_WINDOW_MS.
+  if (i < enrollments.length) {
+    await releaseClaims(
+      supabase,
+      enrollments.slice(i).map((e) => e.id)
+    );
+  }
+
   log.info(result, "sequence executor finished");
   return result;
+}
+
+/**
+ * Undo the claim on enrollments this run never got to, making them due again
+ * now. Best-effort: on failure they simply wait out CLAIM_WINDOW_MS.
+ */
+async function releaseClaims(
+  supabase: SupabaseClient<Database>,
+  enrollmentIds: string[]
+): Promise<void> {
+  if (enrollmentIds.length === 0) return;
+
+  const { error } = await supabase
+    .from("sequence_enrollments")
+    .update({ next_execution_at: new Date().toISOString() })
+    .in("id", enrollmentIds)
+    .eq("status", "active");
+
+  if (error) {
+    withCorrelationId(createCorrelationId()).error(
+      { error, count: enrollmentIds.length },
+      "failed to release unprocessed enrollment claims"
+    );
+  }
 }
 
 /**
@@ -155,8 +219,11 @@ export async function runSequenceExecutor(
  * next_execution_at. Every successful step execution overwrites this value,
  * so the claim only matters when a run overlaps with the next cron tick or
  * crashes mid-batch (the enrollment then retries after the claim expires).
+ *
+ * Kept just above the 5-minute cron interval: a claim that outlives the run
+ * by much makes crashed-mid-batch enrollments invisible for that whole window.
  */
-const CLAIM_WINDOW_MS = 15 * 60_000;
+const CLAIM_WINDOW_MS = 6 * 60_000;
 
 /**
  * Fetch active enrollments whose execution time has arrived, ordered by
@@ -171,8 +238,7 @@ export async function fetchDueEnrollments(
 ): Promise<SequenceEnrollment[]> {
   const now = Date.now();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("sequence_enrollments")
     .select("*")
     .eq("status", "active")
@@ -188,8 +254,7 @@ export async function fetchDueEnrollments(
   if (enrollments.length === 0) return enrollments;
 
   const claimUntil = new Date(now + CLAIM_WINDOW_MS).toISOString();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: claimError } = await (supabase as any)
+  const { error: claimError } = await supabase
     .from("sequence_enrollments")
     .update({ next_execution_at: claimUntil })
     .in(
@@ -474,8 +539,7 @@ async function dispatchStep(
           correlationId
         );
         chatId = chatResp.chat_id;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
+        await supabase
           .from("leads")
           .update({ unipile_chat_id: chatId })
           .eq("id", lead.id);
@@ -545,12 +609,12 @@ async function dispatchStep(
         "condition evaluated"
       );
 
-      if (targetStep != null) {
-        nextStepOrder = targetStep;
-      } else {
-        // No branch target defined — advance linearly
-        nextStepOrder = await getNextStepOrder(supabase, enrollment.sequence_id, step.step_order);
-      }
+      // A null branch target means "stop here", not "advance linearly".
+      // constants/sequenceDefaults.ts encodes the canonical condition as
+      // `on_true_step: null  // replied → sequence complete (human takes over)`,
+      // so falling through would send the automated nudge to a lead who has
+      // already replied. `nextStepOrder == null` completes the enrollment below.
+      nextStepOrder = targetStep;
       nextExecutionAt = new Date(now.getTime() + NEXT_STEP_CHECK_DELAY_MS);
       break;
     }
@@ -647,10 +711,30 @@ function personalizeMessage(body: string, lead: Lead): string {
   return fillTemplate(body, lead);
 }
 
+/**
+ * Statuses that all mean "this lead has responded". A `status == replied`
+ * condition must match every one of them: a lead who replied and was then
+ * marked `interested` or `meeting_booked` has still replied, and exact string
+ * equality would let them fall through to the automated follow-up nudge.
+ */
+const REPLIED_STATUSES: ReadonlySet<string> = new Set<LeadStatus>([
+  "replied",
+  "interested",
+  "not_interested",
+  "meeting_booked",
+  "converted",
+]);
+
 function evaluateCondition(lead: Lead, step: SequenceStep): boolean {
   if (!step.condition_field || step.condition_value == null) return false;
   const fieldValue = (lead as unknown as Record<string, unknown>)[step.condition_field];
-  return String(fieldValue ?? "") === step.condition_value;
+  const actual = String(fieldValue ?? "");
+
+  if (step.condition_field === "status" && step.condition_value === "replied") {
+    return REPLIED_STATUSES.has(actual);
+  }
+
+  return actual === step.condition_value;
 }
 
 async function resolveMessageBody(
@@ -693,8 +777,7 @@ async function updateEnrollmentFields(
   enrollmentId: string,
   fields: Partial<Omit<SequenceEnrollment, "id" | "created_at">>
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
+  const { error } = await supabase
     .from("sequence_enrollments")
     .update(fields)
     .eq("id", enrollmentId);
@@ -724,8 +807,7 @@ async function updateLeadStatus(
   leadId: string,
   status: LeadStatus
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("leads").update({ status }).eq("id", leadId);
+  await supabase.from("leads").update({ status }).eq("id", leadId);
 }
 
 interface InsertMessagePayload {
@@ -745,8 +827,7 @@ async function insertMessage(
   supabase: SupabaseClient<Database>,
   payload: InsertMessagePayload
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("messages").insert({
+  await supabase.from("messages").insert({
     user_id: payload.user_id,
     lead_id: payload.lead_id,
     campaign_id: payload.campaign_id,
@@ -777,8 +858,7 @@ async function insertActivity(
   supabase: SupabaseClient<Database>,
   payload: InsertActivityPayload
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("activities").insert(payload);
+  await supabase.from("activities").insert(payload);
 }
 
 /**
@@ -790,8 +870,7 @@ async function incrementCampaignStat(
   campaignId: string,
   field: "invites_sent" | "messages_sent" | "invites_accepted" | "replies_received"
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database types
-  const { error } = await (supabase as any).rpc("increment_campaign_stat", {
+  const { error } = await supabase.rpc("increment_campaign_stat", {
     p_campaign_id: campaignId,
     p_field: field,
     p_delta: 1,

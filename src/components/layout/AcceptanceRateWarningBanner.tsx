@@ -6,8 +6,9 @@ import { useAccountHealth } from "@/hooks/useAccountHealth";
 
 /**
  * Shown when the overall invitation acceptance rate across campaigns drops
- * below 20% (with at least 20 invites sent). Any active campaigns are
- * automatically paused server-side by the health endpoint.
+ * below 20% (with at least 20 invites sent). Still-active campaigns are paused
+ * by the account guard on its next scheduled run — the health endpoint only
+ * reports, it no longer mutates.
  */
 export function AcceptanceRateWarningBanner() {
   const { health } = useAccountHealth();
@@ -15,7 +16,7 @@ export function AcceptanceRateWarningBanner() {
 
   if (!health?.account_health.acceptance_rate_warning || dismissed) return null;
 
-  const { acceptance_rate, campaigns_auto_paused } = health.account_health;
+  const { acceptance_rate, campaigns_at_risk } = health.account_health;
 
   return (
     <div
@@ -30,12 +31,13 @@ export function AcceptanceRateWarningBanner() {
         </p>
         <p className="text-xs opacity-80">
           Invitation acceptance rate dropped below 20%.
-          {campaigns_auto_paused > 0 && (
+          {campaigns_at_risk > 0 && (
             <>
               {" "}
-              {campaigns_auto_paused}{" "}
-              {campaigns_auto_paused === 1 ? "campaign was" : "campaigns were"}{" "}
-              automatically paused to protect your LinkedIn account.
+              {campaigns_at_risk}{" "}
+              {campaigns_at_risk === 1 ? "campaign is" : "campaigns are"} still
+              active and will be paused automatically to protect your LinkedIn
+              account.
             </>
           )}{" "}
           Review your targeting and message quality, then re-activate campaigns

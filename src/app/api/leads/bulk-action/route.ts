@@ -44,8 +44,7 @@ export async function POST(request: Request) {
 
     // ── add_tags: fetch-merge-update per lead ────────────────────────
     if (action === "add_tags" && tags) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: leadsData, error: fetchError } = await (supabase as any)
+      const { data: leadsData, error: fetchError } = await supabase
         .from("leads")
         .select("id, tags, campaign_id")
         .in("id", lead_ids)
@@ -66,24 +65,34 @@ export async function POST(request: Request) {
         campaign_id: string | null;
       }>;
 
-      // Update each lead with merged tags (deduplicated)
-      await Promise.all(
+      // Update each lead with merged tags (deduplicated). Errors were
+      // previously discarded while the response still reported every lead as
+      // updated, so a partial failure looked like a complete success.
+      const updateResults = await Promise.all(
         leads.map((lead) => {
           const merged = Array.from(
             new Set([...(lead.tags ?? []), ...tags]),
           );
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (supabase as any)
+          return supabase
             .from("leads")
             .update({ tags: merged })
             .eq("id", lead.id);
         }),
       );
 
+      const failed = updateResults.filter((r) => r.error);
+      if (failed.length > 0) {
+        log.error(
+          { failedCount: failed.length, total: leads.length, code: failed[0].error?.code },
+          "bulk add_tags: some lead updates failed",
+        );
+      }
+
+      const updated = leads.length - failed.length;
+
       // Log activities
-      if (leads.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from("activities").insert(
+      if (updated > 0) {
+        const { error: activityError } = await supabase.from("activities").insert(
           leads.map((lead) => ({
             user_id: user.id,
             lead_id: lead.id,
@@ -97,10 +106,17 @@ export async function POST(request: Request) {
             },
           })),
         );
+        if (activityError) {
+          log.error({ error: activityError }, "bulk add_tags: failed to log activities");
+        }
       }
 
-      log.info({ count: leads.length }, "bulk add_tags completed");
-      return NextResponse.json({ updated: leads.length, correlationId });
+      log.info({ count: updated, failed: failed.length }, "bulk add_tags completed");
+      return NextResponse.json({
+        updated,
+        failed: failed.length,
+        correlationId,
+      });
     }
 
     // ── Validate campaign ownership for add_to_campaign ──────────────
@@ -146,8 +162,7 @@ export async function POST(request: Request) {
     }
 
     // ── Update leads (scoped to user via RLS + explicit filter) ──────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: updatedData, error: updateError } = await (supabase as any)
+    const { data: updatedData, error: updateError } = await supabase
       .from("leads")
       .update(updatePayload)
       .in("id", lead_ids)
@@ -170,8 +185,7 @@ export async function POST(request: Request) {
 
     // ── Log activities ────────────────────────────────────────────────
     if (updated.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("activities").insert(
+      await supabase.from("activities").insert(
         updated.map((lead) => ({
           user_id: user.id,
           lead_id: lead.id,

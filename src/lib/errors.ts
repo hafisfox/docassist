@@ -40,7 +40,7 @@ export class UnipileError extends AppError {
       cause?: unknown;
     } = {}
   ) {
-    super(message, { statusCode: options.statusCode ?? 502, ...options });
+    super(message, { ...options, statusCode: options.statusCode ?? 502 });
     this.name = "UnipileError";
   }
 }
@@ -55,7 +55,7 @@ export class ApifyError extends AppError {
       cause?: unknown;
     } = {}
   ) {
-    super(message, { statusCode: options.statusCode ?? 502, ...options });
+    super(message, { ...options, statusCode: options.statusCode ?? 502 });
     this.name = "ApifyError";
   }
 }
@@ -69,7 +69,7 @@ export class ValidationError extends AppError {
       cause?: unknown;
     } = {}
   ) {
-    super(message, { statusCode: 400, ...options });
+    super(message, { ...options, statusCode: 400 });
     this.name = "ValidationError";
   }
 }
@@ -83,7 +83,7 @@ export class RateLimitError extends AppError {
       cause?: unknown;
     } = {}
   ) {
-    super(message, { statusCode: 429, ...options });
+    super(message, { ...options, statusCode: 429 });
     this.name = "RateLimitError";
   }
 }
@@ -97,7 +97,7 @@ export class CircuitOpenError extends AppError {
       cause?: unknown;
     } = {}
   ) {
-    super(message, { statusCode: 503, ...options });
+    super(message, { ...options, statusCode: 503 });
     this.name = "CircuitOpenError";
   }
 }

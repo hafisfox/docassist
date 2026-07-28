@@ -125,7 +125,7 @@ function LeadsContent() {
     const accountType = params.get("account_type")
     const location = params.get("location")
     if (search) apiFilters.search = search
-    if (status && !status.includes(",")) apiFilters.status = status
+    if (status) apiFilters.status = status
     if (campaignId) apiFilters.campaign_id = campaignId
     if (icpSegment) apiFilters.icp_segment = icpSegment
     if (accountType) apiFilters.account_type = accountType
@@ -138,9 +138,11 @@ function LeadsContent() {
     fetchLeads(buildApiFilters())
   }, [searchParamsString, fetchLeads, buildApiFilters])
 
-  // Fetch campaigns on mount
+  // Fetch campaigns on mount.
+  // Explicit limit: the API defaults to 25, which silently truncated both the
+  // campaign filter and the bulk "Add to Campaign" menu.
   useEffect(() => {
-    fetch("/api/campaigns")
+    fetch("/api/campaigns?limit=100")
       .then((res) => (res.ok ? res.json() : { campaigns: [] }))
       .then((data) => setCampaigns(data.campaigns ?? []))
       .catch(() => {})
@@ -208,10 +210,13 @@ function LeadsContent() {
     setDeleting(true)
     try {
       await deleteLead(deleteTarget.id)
-      toast.success(`${deleteTarget.full_name} deleted`)
+      // DELETE /api/leads/[id] is a soft delete — it sets status to
+      // do_not_contact and the row stays in the table. Saying "deleted" while
+      // the lead is still visible reads as a bug.
+      toast.success(`${deleteTarget.full_name} marked Do Not Contact`)
       setDeleteTarget(null)
     } catch {
-      toast.error("Failed to delete lead")
+      toast.error("Failed to remove lead")
     } finally {
       setDeleting(false)
     }
@@ -506,11 +511,11 @@ function LeadsContent() {
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null)
         }}
-        title="Delete lead"
-        description={`Are you sure you want to delete ${deleteTarget?.full_name}? This action cannot be undone.`}
+        title="Remove lead"
+        description={`Mark ${deleteTarget?.full_name} as Do Not Contact? They stay in your list but are excluded from all outreach.`}
         onConfirm={handleDelete}
         variant="destructive"
-        confirmLabel="Delete"
+        confirmLabel="Mark Do Not Contact"
         loading={deleting}
       />
 

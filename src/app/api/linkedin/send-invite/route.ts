@@ -44,8 +44,7 @@ export async function POST(request: NextRequest) {
     logCtx.info({ leadId: lead_id, hasMessage: !!message }, "send connection request");
 
     // ── Fetch account ID from user settings ──────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data: settings } = await (supabase as any)
+    const { data: settings } = await supabase
       .from("settings")
       .select("unipile_account_id")
       .eq("user_id", user.id)
@@ -62,27 +61,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Check + increment daily rate limit ───────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const limitResult = await checkAndIncrementLimit(supabase as any, user.id, "invite", correlationId);
-
-    if (!limitResult.allowed) {
-      logCtx.warn({ limitResult }, "daily invite limit reached");
-      return NextResponse.json(
-        {
-          error: "Daily connection request limit reached. Try again tomorrow.",
-          remaining_daily_invites: 0,
-          correlationId,
-        },
-        { status: 429 },
-      );
-    }
-
-    logCtx.debug({ remaining: limitResult.remaining }, "rate limit check passed");
-
     // ── Fetch lead (scoped to current user) ──────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leadRow, error: leadError } = await (supabase as any)
+    const { data: leadRow, error: leadError } = await supabase
       .from("leads")
       .select("*")
       .eq("id", lead_id)
@@ -124,14 +104,35 @@ export async function POST(request: NextRequest) {
       providerId = profile.provider_id;
 
       // Persist for future calls
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
+      await supabase
         .from("leads")
         .update({ linkedin_provider_id: providerId })
         .eq("id", lead_id);
 
       logCtx.info({ providerId }, "provider_id resolved and stored");
     }
+
+    // ── Check + increment daily rate limit ───────────────────────────────────
+    // Deliberately last: the checks above can still return 404 (unknown lead)
+    // or 422 (no Unipile account / no LinkedIn profile), and consuming quota
+    // before them lets a client retrying against a misconfigured account burn
+    // the entire daily allowance without a single LinkedIn call.
+     
+    const limitResult = await checkAndIncrementLimit(supabase, user.id, "invite", correlationId);
+
+    if (!limitResult.allowed) {
+      logCtx.warn({ limitResult }, "daily invite limit reached");
+      return NextResponse.json(
+        {
+          error: "Daily connection request limit reached. Try again tomorrow.",
+          remaining_daily_invites: 0,
+          correlationId,
+        },
+        { status: 429 },
+      );
+    }
+
+    logCtx.debug({ remaining: limitResult.remaining }, "rate limit check passed");
 
     // ── Send invitation via Unipile ──────────────────────────────────────────
     const client = getUnipileClient();
@@ -144,8 +145,7 @@ export async function POST(request: NextRequest) {
 
     // ── Update lead: status → invite_sent, stamp last_contacted_at ───────────
     const now = new Date().toISOString();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
+    await supabase
       .from("leads")
       .update({ status: "invite_sent", last_contacted_at: now })
       .eq("id", lead_id);
@@ -155,8 +155,7 @@ export async function POST(request: NextRequest) {
       ? `Connection request sent with note (${message.length} chars)`
       : "Connection request sent";
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from("activities").insert({
+    await supabase.from("activities").insert({
       user_id: user.id,
       lead_id,
       campaign_id: lead.campaign_id,
@@ -173,8 +172,7 @@ export async function POST(request: NextRequest) {
 
     // ── Increment campaign invites_sent counter (atomic) ──────────────────────
     if (lead.campaign_id) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: statError } = await (supabase as any).rpc("increment_campaign_stat", {
+      const { error: statError } = await supabase.rpc("increment_campaign_stat", {
         p_campaign_id: lead.campaign_id,
         p_field: "invites_sent",
         p_delta: 1,
@@ -186,8 +184,7 @@ export async function POST(request: NextRequest) {
 
     // ── Store connection request note in messages table ───────────────────────
     if (message) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("messages").insert({
+      await supabase.from("messages").insert({
         user_id: user.id,
         lead_id,
         campaign_id: lead.campaign_id,

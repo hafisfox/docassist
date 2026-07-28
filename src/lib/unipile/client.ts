@@ -81,7 +81,13 @@ export class UnipileClient {
       init.body = JSON.stringify(options.body);
     }
 
-    return withRetry(() => getCircuitBreaker().execute(async () => {
+    // The breaker MUST wrap the retry, not the other way round. Inverted, each
+    // of a single request's retry attempts registers as an independent breaker
+    // failure, so one transient 5xx burst trips the threshold on its own and
+    // pauses every active campaign. Wrapped this way, a request that eventually
+    // succeeds after retries counts as one success, and one that exhausts its
+    // retries counts as a single failure.
+    return getCircuitBreaker().execute(() => withRetry(async () => {
       let response: Response;
       try {
         response = await fetch(url.toString(), init);

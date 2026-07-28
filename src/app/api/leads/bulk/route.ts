@@ -68,8 +68,7 @@ export async function POST(request: Request) {
       const batch = rows.slice(i, i + BATCH_SIZE);
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-      const { data, error: dbError } = await (supabase as any)
+      const { data, error: dbError } = await supabase
         .from("leads")
         .insert(batch)
         .select();
@@ -100,8 +99,7 @@ export async function POST(request: Request) {
 
     // ── Log a single aggregate activity for the bulk import ──────────
     if (inserted.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("activities").insert({
+      await supabase.from("activities").insert({
         user_id: user.id,
         lead_id: null,
         campaign_id: null,

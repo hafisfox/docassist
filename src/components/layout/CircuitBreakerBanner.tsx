@@ -55,7 +55,7 @@ export function CircuitBreakerBanner() {
           {isHalfOpen && "A test call is in progress to verify the API is back."}
           {" "}
           <a
-            href="/dashboard/settings"
+            href="/settings"
             className="underline underline-offset-2 hover:opacity-70"
           >
             View details in Settings

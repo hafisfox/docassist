@@ -29,7 +29,6 @@ import {
   ArrowUpDownIcon,
   MoreHorizontalIcon,
   ExternalLinkIcon,
-  PencilIcon,
   TrashIcon,
 } from "lucide-react"
 
@@ -328,12 +327,6 @@ function LeadTable({
                   >
                     <ExternalLinkIcon />
                     View details
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => router.push(`/leads/${lead.id}/edit`)}
-                  >
-                    <PencilIcon />
-                    Edit
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem

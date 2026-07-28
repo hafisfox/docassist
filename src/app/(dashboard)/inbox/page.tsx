@@ -43,7 +43,10 @@ function InboxContent() {
     search,
     filter,
     unreadCount,
+    cursor,
+    loadingMore,
     fetchChats,
+    loadMore,
     syncInbox,
     selectChat,
     setChatInterest,
@@ -86,6 +89,9 @@ function InboxContent() {
           onSearchChange={setSearch}
           onFilterChange={setFilter}
           onSync={syncInbox}
+          hasMore={cursor !== null}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
         />
       </div>
 

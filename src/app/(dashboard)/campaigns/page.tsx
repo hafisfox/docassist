@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/shared/EmptyState"
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
 import { ErrorState } from "@/components/shared/ErrorState"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { SearchInput } from "@/components/shared/SearchInput"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
@@ -20,7 +20,6 @@ import {
 import {
   MegaphoneIcon,
   PlusIcon,
-  SearchIcon,
 } from "lucide-react"
 import type { CampaignStatus } from "@/types/database"
 
@@ -67,15 +66,16 @@ function CampaignsContent() {
 
       {/* Filters */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search campaigns..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
-        </div>
+        {/*
+          SearchInput debounces (300 ms). A raw Input here fired one API
+          request per keystroke, since the fetch effect depends on `search`.
+        */}
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search campaigns..."
+          className="flex-1"
+        />
         <Select
           value={statusFilter}
           onValueChange={(v) => setStatusFilter(v as CampaignStatus | "all")}

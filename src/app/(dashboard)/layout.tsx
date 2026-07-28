@@ -1,6 +1,13 @@
 "use client";
 
-export const dynamic = "force-dynamic";
+// NOTE: `export const dynamic = "force-dynamic"` used to sit here. Route-segment
+// config is a server-side construct and is silently ignored in a Client
+// Component — `next build` still marked these routes ○ (Static), so the
+// guarantee it looked like it provided was never in effect.
+//
+// A static shell is correct here anyway: this tree fetches everything at
+// runtime through RLS-protected API routes, and unauthenticated access is
+// blocked by src/proxy.ts before the page renders.
 
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";

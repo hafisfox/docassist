@@ -43,27 +43,33 @@ export async function POST(request: NextRequest) {
     const { lead_id, chat_id: directChatId, text } = parsed.data;
     logCtx.info({ leadId: lead_id, chatId: directChatId, textLength: text.length }, "send message request");
 
-    // ── Check + increment daily message rate limit ───────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const limitResult = await checkAndIncrementLimit(supabase as any, user.id, "message", correlationId);
-
-    if (!limitResult.allowed) {
-      logCtx.warn({ limitResult }, "daily message limit reached");
-      return NextResponse.json(
-        {
-          error: "Daily message limit reached. Try again tomorrow.",
-          remaining_daily_messages: 0,
-          correlationId,
-        },
-        { status: 429 },
-      );
-    }
-
-    logCtx.debug({ remaining: limitResult.remaining }, "rate limit check passed");
+    // ── Daily message quota ──────────────────────────────────────────────────
+    // Consumed immediately before an actual send, never up front: the checks
+    // below can still return 422 (no Unipile account / no LinkedIn profile) or
+    // 404 (unknown lead), and a client retrying against a misconfigured account
+    // would otherwise burn the entire daily allowance without a single
+    // LinkedIn call. Returns the remaining count, or a 429 response to bail on.
+    const consumeQuota = async (): Promise<number | NextResponse> => {
+       
+      const r = await checkAndIncrementLimit(supabase, user.id, "message", correlationId);
+      if (!r.allowed) {
+        logCtx.warn({ limitResult: r }, "daily message limit reached");
+        return NextResponse.json(
+          {
+            error: "Daily message limit reached. Try again tomorrow.",
+            remaining_daily_messages: 0,
+            correlationId,
+          },
+          { status: 429 },
+        );
+      }
+      logCtx.debug({ remaining: r.remaining }, "rate limit check passed");
+      return r.remaining;
+    };
+    let remainingMessages = 0;
 
     // ── Fetch account ID from user settings ──────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data: settings } = await (supabase as any)
+    const { data: settings } = await supabase
       .from("settings")
       .select("unipile_account_id")
       .eq("user_id", user.id)
@@ -86,10 +92,14 @@ export async function POST(request: NextRequest) {
     // ── Direct chat_id path (from inbox thread) ───────────────────────────────
     if (directChatId && !lead_id) {
       logCtx.info({ chatId: directChatId }, "sending message directly by chat_id");
+
+      const quota = await consumeQuota();
+      if (quota instanceof NextResponse) return quota;
+      remainingMessages = quota;
+
       await client.sendMessageInChat({ chat_id: directChatId, text }, correlationId);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("messages").insert({
+      await supabase.from("messages").insert({
         user_id: user.id,
         unipile_chat_id: directChatId,
         direction: "outbound",
@@ -100,19 +110,28 @@ export async function POST(request: NextRequest) {
         personalization_variables: {},
       });
 
-      logCtx.info({ chatId: directChatId, remaining: limitResult.remaining }, "direct chat send completed");
+      logCtx.info({ chatId: directChatId, remaining: remainingMessages }, "direct chat send completed");
 
       return NextResponse.json({
         success: true,
         chat_id: directChatId,
-        remaining_daily_messages: limitResult.remaining,
+        remaining_daily_messages: remainingMessages,
         correlationId,
       });
     }
 
     // ── Lead-based path ───────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leadRow, error: leadError } = await (supabase as any)
+    // Reaching here means either chat_id was absent (so the schema's refine
+    // guarantees lead_id) or both were supplied. Narrow it explicitly rather
+    // than passing `string | undefined` into the query.
+    if (!lead_id) {
+      return NextResponse.json(
+        { error: "lead_id is required when chat_id is not provided", correlationId },
+        { status: 400 },
+      );
+    }
+
+    const { data: leadRow, error: leadError } = await supabase
       .from("leads")
       .select("*")
       .eq("id", lead_id)
@@ -130,6 +149,11 @@ export async function POST(request: NextRequest) {
     // ── Route: existing chat vs. new chat ────────────────────────────────────
     if (chatId) {
       logCtx.info({ chatId }, "sending message in existing chat");
+
+      const quota = await consumeQuota();
+      if (quota instanceof NextResponse) return quota;
+      remainingMessages = quota;
+
       await client.sendMessageInChat({ chat_id: chatId, text }, correlationId);
     } else {
       // Need provider_id to open a new chat — only possible with 1st-degree connections
@@ -151,8 +175,7 @@ export async function POST(request: NextRequest) {
         providerId = profile.provider_id;
 
         // Persist for future calls
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
+        await supabase
           .from("leads")
           .update({ linkedin_provider_id: providerId })
           .eq("id", lead_id);
@@ -161,6 +184,11 @@ export async function POST(request: NextRequest) {
       }
 
       logCtx.info({ providerId }, "opening new chat and sending message");
+
+      const quota = await consumeQuota();
+      if (quota instanceof NextResponse) return quota;
+      remainingMessages = quota;
+
       const createChatResult = await client.sendMessage(
         { account_id: accountId, attendees_ids: [providerId], text },
         correlationId,
@@ -168,8 +196,7 @@ export async function POST(request: NextRequest) {
       chatId = createChatResult.chat_id;
 
       // Persist chat_id on the lead for future messages
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
+      await supabase
         .from("leads")
         .update({ unipile_chat_id: chatId })
         .eq("id", lead_id);
@@ -178,15 +205,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Update lead status → message_sent, stamp last_contacted_at ───────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
+    await supabase
       .from("leads")
       .update({ status: "message_sent", last_contacted_at: now })
       .eq("id", lead_id);
 
     // ── Insert activity record ────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from("activities").insert({
+    await supabase.from("activities").insert({
       user_id: user.id,
       lead_id,
       campaign_id: lead.campaign_id,
@@ -201,8 +226,7 @@ export async function POST(request: NextRequest) {
 
     // ── Increment campaign messages_sent counter (atomic) ─────────────────────
     if (lead.campaign_id) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: statError } = await (supabase as any).rpc("increment_campaign_stat", {
+      const { error: statError } = await supabase.rpc("increment_campaign_stat", {
         p_campaign_id: lead.campaign_id,
         p_field: "messages_sent",
         p_delta: 1,
@@ -213,8 +237,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Store message in messages table ───────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from("messages").insert({
+    await supabase.from("messages").insert({
       user_id: user.id,
       lead_id,
       campaign_id: lead.campaign_id,
@@ -228,14 +251,14 @@ export async function POST(request: NextRequest) {
     });
 
     logCtx.info(
-      { leadId: lead_id, chatId, remaining: limitResult.remaining },
+      { leadId: lead_id, chatId, remaining: remainingMessages },
       "message send flow completed",
     );
 
     return NextResponse.json({
       success: true,
       chat_id: chatId,
-      remaining_daily_messages: limitResult.remaining,
+      remaining_daily_messages: remainingMessages,
       correlationId,
     });
   } catch (err) {

@@ -1,7 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, LogOut, Menu, Search, User } from "lucide-react";
+import { Bell, LogOut, Menu, Search, Settings } from "lucide-react";
+import Link from "next/link";
+import { signout } from "@/app/(auth)/login/actions";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -20,6 +22,7 @@ const pageTitles: Record<string, string> = {
   "/inbox": "Inbox",
   "/templates": "Templates",
   "/analytics": "Analytics",
+  "/automations": "Automations",
   "/settings": "Settings",
 };
 
@@ -94,12 +97,12 @@ export function TopBar({ onMobileMenuOpen, onSearchOpen }: TopBarProps) {
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" sideOffset={8}>
-            <DropdownMenuItem>
-              <User className="size-4" />
-              Profile
+            <DropdownMenuItem render={<Link href="/settings" />}>
+              <Settings className="size-4" />
+              Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void signout()}>
               <LogOut className="size-4" />
               Sign out
             </DropdownMenuItem>

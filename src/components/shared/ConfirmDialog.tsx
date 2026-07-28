@@ -16,7 +16,8 @@ interface ConfirmDialogProps {
   onOpenChange: (open: boolean) => void
   title: string
   description: string
-  onConfirm: () => void
+  /** May be async — the dialog stays open (and `loading` visible) until it settles. */
+  onConfirm: () => void | Promise<void>
   variant?: "default" | "destructive"
   confirmLabel?: string
   cancelLabel?: string
@@ -51,9 +52,17 @@ function ConfirmDialog({
           </Button>
           <Button
             variant={variant === "destructive" ? "destructive" : "default"}
-            onClick={() => {
-              onConfirm()
-              onOpenChange(false)
+            // Await before closing: firing and closing immediately meant the
+            // `loading` prop could never be observed, so destructive bulk
+            // actions gave no in-flight feedback. Leave the dialog open on
+            // failure so the caller's error toast has context.
+            onClick={async () => {
+              try {
+                await onConfirm()
+                onOpenChange(false)
+              } catch {
+                // Caller surfaces the error; keep the dialog open.
+              }
             }}
             disabled={loading}
           >

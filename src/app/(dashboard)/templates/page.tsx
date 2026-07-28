@@ -88,7 +88,7 @@ function TemplateCard({
 
       <div className="mt-auto flex items-center justify-between gap-2 pt-1">
         <div className="flex flex-wrap gap-1">
-          {template.variables.map((v) => (
+          {(template.variables ?? []).map((v) => (
             <Badge key={v} variant="outline" className="text-[10px]">
               {`{{${v}}}`}
             </Badge>
@@ -253,7 +253,15 @@ function TemplatesContent() {
       </Tabs>
 
       {/* Editor Side Panel */}
+      {/*
+        `key` remounts the editor whenever the target template changes, so its
+        `useState` initialisers re-run against the right template. Without it
+        the Sheet is controlled by the `open` prop, which never fires
+        `onOpenChange`, so an internal reset would never run and the form would
+        open blank.
+      */}
       <TemplateEditor
+        key={editingTemplate?.id ?? "new"}
         open={editorOpen}
         onOpenChange={setEditorOpen}
         template={editingTemplate}

@@ -1,6 +1,7 @@
 "use client";
 
-export const dynamic = "force-dynamic";
+// See (dashboard)/layout.tsx: route-segment config is a no-op in a Client
+// Component. Data here is fetched at runtime, so a static shell is fine.
 
 import { useState } from "react";
 import { useAutomations, type Automation } from "@/hooks/useAutomations";

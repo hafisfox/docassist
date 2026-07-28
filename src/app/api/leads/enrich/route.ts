@@ -46,8 +46,7 @@ export async function POST(request: Request) {
     log.info({ userId: user.id, leadId: lead_id }, "enrich lead request");
 
     // Fetch the lead
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data, error: fetchError } = await (supabase as any)
+    const { data, error: fetchError } = await supabase
       .from("leads")
       .select("*")
       .eq("id", lead_id)
@@ -118,8 +117,7 @@ export async function POST(request: Request) {
       updatePayload.last_name = enriched.last_name;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data: updatedLead, error: updateError } = await (supabase as any)
+    const { data: updatedLead, error: updateError } = await supabase
       .from("leads")
       .update(updatePayload)
       .eq("id", lead_id)
@@ -136,8 +134,7 @@ export async function POST(request: Request) {
     }
 
     // Log activity
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    await (supabase as any).from("activities").insert({
+    await supabase.from("activities").insert({
       user_id: user.id,
       lead_id,
       activity_type: "lead_enriched",

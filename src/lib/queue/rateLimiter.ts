@@ -1,7 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { withCorrelationId } from "@/lib/logger";
 import { MAX_DAILY_INVITES, MAX_DAILY_MESSAGES, MAX_DAILY_PROFILE_VIEWS } from "@/constants/linkedinLimits";
-import type { Database, Settings } from "@/types/database";
+import type { Database, Settings, SettingsCounterField } from "@/types/database";
 
 export type LimitType = "invite" | "message" | "profile_view";
 
@@ -33,7 +33,9 @@ const LIMIT_COLUMN: Record<LimitType, keyof Settings> = {
 
 /**
  * Checks whether a LinkedIn action is within the daily rate limit and, if so,
- * increments the counter atomically in the settings table.
+ * claims a slot by incrementing the counter through the
+ * `increment_settings_counter` RPC, which does the read and write in one
+ * statement. An increment that turns out to exceed the limit is rolled back.
  *
  * Also resets daily counters when the calendar day (UTC) has rolled over since
  * `counters_reset_at`.
@@ -52,8 +54,7 @@ export async function checkAndIncrementLimit(
     : undefined;
 
   // ── 1. Fetch current settings ────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2 generic resolution
-  const { data: settings, error: fetchError } = await (supabase as any)
+  const { data: settings, error: fetchError } = await supabase
     .from("settings")
     .select("*")
     .eq("user_id", userId)
@@ -75,8 +76,7 @@ export async function checkAndIncrementLimit(
     now.getUTCDate() !== resetAt.getUTCDate();
 
   if (isNewDay) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: resetError } = await (supabase as any)
+    const { error: resetError } = await supabase
       .from("settings")
       .update({
         invites_sent_today: 0,
@@ -102,32 +102,50 @@ export async function checkAndIncrementLimit(
 
   // ── 3. Determine limit and current count ─────────────────────────────────
   const limit = typedSettings[LIMIT_COLUMN[type]] as number;
-  const counterCol = COUNTER_COLUMN[type];
+  const counterCol = COUNTER_COLUMN[type] as SettingsCounterField;
   const current = typedSettings[counterCol] as number;
 
+  // Cheap pre-check so an obviously-exhausted quota costs no write.
   if (current >= limit) {
     log?.warn({ current, limit }, "Daily rate limit reached");
     return { allowed: false, remaining: 0 };
   }
 
-  // ── 4. Increment counter ──────────────────────────────────────────────────
-  const next = current + 1;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: updateError } = await (supabase as any)
-    .from("settings")
-    .update({ [counterCol]: next })
-    .eq("user_id", userId);
+  // ── 4. Claim a slot atomically ────────────────────────────────────────────
+  // The counter is incremented in a single UPDATE … RETURNING (see migration
+  // 20240101000017) rather than read-modify-written here. Under the previous
+  // pattern two concurrent sends both read 24 and both wrote 25 — two LinkedIn
+  // actions taken, one recorded — which is precisely the failure the daily
+  // limits exist to prevent.
+  const { data: newValue, error: updateError } = await supabase.rpc(
+    "increment_settings_counter",
+    { p_user_id: userId, p_field: counterCol, p_delta: 1 }
+  );
 
-  if (updateError) {
+  if (updateError || typeof newValue !== "number") {
     log?.error({ error: updateError }, "Failed to increment rate limit counter");
     // Fail open — don't block the action because of a DB write failure
     return { allowed: true, remaining: limit - current };
   }
 
-  const remaining = limit - next;
-  log?.debug({ current: next, limit, remaining }, "Rate limit counter incremented");
+  // We may have won the pre-check but lost the race. The increment already
+  // landed, so hand the slot back rather than leaving the counter inflated.
+  if (newValue > limit) {
+    log?.warn({ current: newValue, limit }, "Daily rate limit reached (lost race)");
+    const { error: rollbackError } = await supabase.rpc(
+      "increment_settings_counter",
+      { p_user_id: userId, p_field: counterCol, p_delta: -1 }
+    );
+    if (rollbackError) {
+      log?.error({ error: rollbackError }, "Failed to roll back over-limit counter increment");
+    }
+    return { allowed: false, remaining: 0 };
+  }
 
-  return { allowed: true, remaining, current: next };
+  const remaining = limit - newValue;
+  log?.debug({ current: newValue, limit, remaining }, "Rate limit counter incremented");
+
+  return { allowed: true, remaining, current: newValue };
 }
 
 /**

@@ -8,6 +8,21 @@ export type AuthState = {
   success?: string;
 } | null;
 
+const DEFAULT_REDIRECT = "/dashboard";
+
+/**
+ * Only same-origin, absolute paths are allowed as post-login destinations.
+ * Anything else (absolute URLs, protocol-relative `//evil.com`, backslash
+ * variants that some browsers normalise to `//`) falls back to the dashboard.
+ */
+function safeRedirect(target: FormDataEntryValue | null): string {
+  if (typeof target !== "string" || target.length === 0) return DEFAULT_REDIRECT;
+  if (!target.startsWith("/")) return DEFAULT_REDIRECT;
+  if (target.startsWith("//") || target.startsWith("/\\")) return DEFAULT_REDIRECT;
+  if (target.includes("\\")) return DEFAULT_REDIRECT;
+  return target;
+}
+
 export async function login(prevState: AuthState, formData: FormData) {
   const supabase = await createClient();
 
@@ -24,8 +39,7 @@ export async function login(prevState: AuthState, formData: FormData) {
     return { error: error.message };
   }
 
-  const redirectTo = formData.get("redirect") as string;
-  redirect(redirectTo || "/dashboard");
+  redirect(safeRedirect(formData.get("redirect")));
 }
 
 export async function signup(prevState: AuthState, formData: FormData) {

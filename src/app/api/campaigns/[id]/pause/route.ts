@@ -79,8 +79,7 @@ export async function POST(
     const now = new Date().toISOString();
 
     // ── Pause all active enrollments ──────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: enrollError } = await (supabase as any)
+    const { error: enrollError } = await supabase
       .from("sequence_enrollments")
       .update({ status: "paused" })
       .eq("campaign_id", id)
@@ -95,16 +94,14 @@ export async function POST(
     }
 
     // Count paused enrollments for the activity log
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count: pausedCount } = await (supabase as any)
+    const { count: pausedCount } = await supabase
       .from("sequence_enrollments")
       .select("id", { count: "exact", head: true })
       .eq("campaign_id", id)
       .eq("status", "paused");
 
     // ── Update campaign status → paused ───────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: updatedData, error: updateError } = await (supabase as any)
+    const { data: updatedData, error: updateError } = await supabase
       .from("campaigns")
       .update({ status: "paused", paused_at: now })
       .eq("id", id)
@@ -116,8 +113,7 @@ export async function POST(
     }
 
     // ── Log activity ──────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from("activities").insert({
+    await supabase.from("activities").insert({
       user_id: user.id,
       lead_id: null,
       campaign_id: id,

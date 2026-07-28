@@ -1,8 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PROTECTED_ROUTES = ["/dashboard"];
-const AUTH_ROUTES = ["/login", "/signup"];
+// NOTE: `(dashboard)` is a route group — the parentheses are stripped from the
+// URL, so these must be listed individually. Adding a page under
+// src/app/(dashboard)/ without adding it here leaves it unguarded.
+const PROTECTED_ROUTES = [
+  "/dashboard",
+  "/leads",
+  "/campaigns",
+  "/sequences",
+  "/templates",
+  "/inbox",
+  "/analytics",
+  "/automations",
+  "/settings",
+];
+const AUTH_ROUTES = ["/login"];
 
 export async function proxy(request: NextRequest) {
   const { user, supabaseResponse } = await updateSession(request);

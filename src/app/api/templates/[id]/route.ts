@@ -130,6 +130,36 @@ export async function PATCH(
       "update template request",
     );
 
+    // Enforce the 300-char connection-request cap against the *effective*
+    // category. updateTemplateSchema can only check it when `category` is in
+    // the same payload, so `PATCH { body: <400 chars> }` on an existing
+    // connection-request template slipped through and was silently truncated
+    // mid-word at send time.
+    if (parsed.data.body && parsed.data.category !== "connection_request") {
+      const { data: existing } = await supabase
+        .from("templates")
+        .select("category")
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const effectiveCategory =
+        parsed.data.category ?? (existing as { category: string } | null)?.category;
+
+      if (effectiveCategory === "connection_request" && parsed.data.body.length > 300) {
+        return NextResponse.json(
+          {
+            error: "Validation failed",
+            details: {
+              body: ["Connection request messages must be 300 characters or fewer"],
+            },
+            correlationId,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     // Re-extract variables if body changed
     const updateData: Record<string, unknown> = { ...parsed.data };
     if (parsed.data.body && !parsed.data.variables) {
@@ -137,8 +167,7 @@ export async function PATCH(
       updateData.variables = [...new Set(variableMatches.map((v) => v.replace(/\{\{|\}\}/g, "")))];
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data, error: dbError } = await (supabase as any)
+    const { data, error: dbError } = await supabase
       .from("templates")
       .update(updateData)
       .eq("id", id)

@@ -136,7 +136,7 @@ function TemplatePicker({
             ? selected.body.slice(0, 200) + "..."
             : selected.body}
           <div className="mt-2 flex flex-wrap gap-1">
-            {selected.variables.map((v) => (
+            {(selected.variables ?? []).map((v) => (
               <Badge key={v} variant="secondary" className="text-[10px]">
                 {`{{${v}}}`}
               </Badge>

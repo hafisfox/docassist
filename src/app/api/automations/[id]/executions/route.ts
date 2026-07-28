@@ -17,7 +17,10 @@ export async function GET(req: NextRequest, context: RouteContext): Promise<Next
     const { id } = await context.params;
     requireManaged(id);
 
-    const limitParam = Number(req.nextUrl.searchParams.get("limit"));
+    // `.get()` returns null when absent, and Number(null) === 0 is finite —
+    // so testing the coerced value would clamp the default to 1 instead of 20.
+    const rawLimit = req.nextUrl.searchParams.get("limit");
+    const limitParam = rawLimit === null ? NaN : Number(rawLimit);
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 20;
 
     const executions = await getN8nClient().getExecutions({

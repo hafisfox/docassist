@@ -48,9 +48,30 @@ export async function POST() {
     const logCtx = log.child({ userId: user.id });
     logCtx.info("starting manual inbox sync");
 
+    // ── Resolve the caller's Unipile account ─────────────────────────────────
+    // Passing undefined falls back to the UNIPILE_ACCOUNT_ID env var, which is
+    // `?? ""` in the client — so a user who configured their account in
+    // Settings while the env is unset would silently query account_id="".
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("unipile_account_id")
+      .eq("user_id", user.id)
+      .single();
+
+    const accountId = settings?.unipile_account_id;
+    if (!accountId) {
+      return NextResponse.json(
+        {
+          error: "Unipile account not configured. Please add your Account ID in Settings.",
+          correlationId,
+        },
+        { status: 422 },
+      );
+    }
+
     // ── Fetch recent chats from Unipile ──────────────────────────────────────
     const client = getUnipileClient();
-    const chatsResponse = await client.getChats(undefined, undefined, correlationId);
+    const chatsResponse = await client.getChats(accountId, undefined, correlationId);
     const chats = chatsResponse.items;
 
     logCtx.info({ chatCount: chats.length }, "chats fetched from unipile");
@@ -64,8 +85,7 @@ export async function POST() {
         let lead: Lead | null = null;
 
         // 1. Match by chat_id (direct — fastest path)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: byChatId } = await (supabase as any)
+        const { data: byChatId } = await supabase
           .from("leads")
           .select("*")
           .eq("unipile_chat_id", chat.id)
@@ -79,8 +99,7 @@ export async function POST() {
         // 2. Fallback: match by attendee provider_id
         if (!lead) {
           for (const attendee of chat.attendees) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: byProviderId } = await (supabase as any)
+            const { data: byProviderId } = await supabase
               .from("leads")
               .select("*")
               .eq("linkedin_provider_id", attendee.provider_id)
@@ -98,8 +117,7 @@ export async function POST() {
 
         // ── Backfill unipile_chat_id if missing ─────────────────────────────
         if (!lead.unipile_chat_id) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any)
+          await supabase
             .from("leads")
             .update({ unipile_chat_id: chat.id })
             .eq("id", lead.id);
@@ -121,8 +139,7 @@ export async function POST() {
         // ── Deduplicate: find which message IDs are already stored ──────────
         const messageIds = messages.map((m) => m.id).filter(Boolean);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: existingRows } = await (supabase as any)
+        const { data: existingRows } = await supabase
           .from("messages")
           .select("unipile_message_id")
           .eq("unipile_chat_id", chat.id)
@@ -147,8 +164,7 @@ export async function POST() {
           const direction = msg.is_sender ? "outbound" : "inbound";
           if (direction === "inbound") hasNewInbound = true;
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).from("messages").insert({
+          await supabase.from("messages").insert({
             user_id: user.id,
             lead_id: lead.id,
             campaign_id: lead.campaign_id ?? null,
@@ -170,8 +186,7 @@ export async function POST() {
 
         // ── Upgrade lead status to "replied" if new inbound messages ────────
         if (hasNewInbound && !PRESERVE_STATUSES.includes(lead.status)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any)
+          await supabase
             .from("leads")
             .update({ status: "replied" as LeadStatus, last_replied_at: now })
             .eq("id", lead.id);

@@ -103,7 +103,11 @@ export function setParam(
         { statusCode: 422 },
       );
     }
-    node.parameters.jsCode = code.replace(re, `$1${value}$3`);
+    // Function form: a string replacement would expand `$&`, `$1`, … in `value`.
+    node.parameters.jsCode = code.replace(
+      re,
+      (_match, p1: string, _p2: string, p3: string) => `${p1}${value}${p3}`,
+    );
     return;
   }
 
@@ -119,5 +123,13 @@ export function setParam(
     );
   }
   const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  node.parameters.jsCode = code.replace(re, `$1"${escaped}"$5`);
+  // Function form is required here: as a string replacement, `$&`, `` $` ``,
+  // `$'` and `$1`…`$9` inside `escaped` would be expanded by String.replace,
+  // splicing surrounding source into the generated JS. The result is pushed to
+  // n8n as executable workflow code, so that is code injection.
+  node.parameters.jsCode = code.replace(
+    re,
+    (_match, p1: string, _p2: string, _p3: string, _p4: string, p5: string) =>
+      `${p1}"${escaped}"${p5}`,
+  );
 }

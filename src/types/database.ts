@@ -52,7 +52,21 @@ export type MessageDirection = "outbound" | "inbound";
 
 // ─── Row types ───────────────────────────────────────────────────────────────
 
-export interface Lead {
+/*
+ * These MUST be `type` aliases, not `interface`s.
+ *
+ * supabase-js constrains a schema's tables to `{ Row: Record<string, unknown>;
+ * … }`. TypeScript gives type aliases an implicit index signature but does not
+ * give one to interfaces, so `Row: SomeInterface` fails that constraint — and
+ * when it fails, the whole Schema generic silently collapses to `never`.
+ * `.insert()` then only accepts `never`, which is why every write in this
+ * codebase used to be cast through `any` with an eslint-disable and a comment
+ * blaming "supabase-js v2.100 generic resolution".
+ *
+ * Converting any of these back to `interface` reintroduces that, quietly.
+ */
+
+export type Lead = {
   id: string;
   user_id: string;
   linkedin_public_id: string | null;
@@ -83,7 +97,8 @@ export interface Lead {
   campaign_id: string | null;
   unipile_chat_id: string | null;
   enrichment_data: Record<string, unknown>;
-  skills: string[];
+  /** Nullable in SQL: `skills TEXT[]` has no DEFAULT. */
+  skills: string[] | null;
   education: Record<string, unknown>[];
   experience: Record<string, unknown>[];
   source: string;
@@ -94,7 +109,8 @@ export interface Lead {
   tier: string | null;
   sequence_step: number | null;
   next_touch_at: string | null;
-  tags: string[];
+  /** Nullable in SQL: `tags TEXT[] DEFAULT '{}'` — the default only applies when omitted. */
+  tags: string[] | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -102,7 +118,7 @@ export interface Lead {
   last_replied_at: string | null;
 }
 
-export interface Campaign {
+export type Campaign = {
   id: string;
   user_id: string;
   name: string;
@@ -130,7 +146,7 @@ export interface Campaign {
   completed_at: string | null;
 }
 
-export interface Sequence {
+export type Sequence = {
   id: string;
   user_id: string;
   name: string;
@@ -140,7 +156,7 @@ export interface Sequence {
   updated_at: string;
 }
 
-export interface SequenceStep {
+export type SequenceStep = {
   id: string;
   sequence_id: string;
   step_order: number;
@@ -156,7 +172,7 @@ export interface SequenceStep {
   created_at: string;
 }
 
-export interface SequenceEnrollment {
+export type SequenceEnrollment = {
   id: string;
   lead_id: string;
   campaign_id: string;
@@ -170,7 +186,7 @@ export interface SequenceEnrollment {
   updated_at: string;
 }
 
-export interface Message {
+export type Message = {
   id: string;
   user_id: string;
   lead_id: string | null;
@@ -189,7 +205,7 @@ export interface Message {
   created_at: string;
 }
 
-export interface Activity {
+export type Activity = {
   id: string;
   user_id: string;
   lead_id: string | null;
@@ -200,21 +216,22 @@ export interface Activity {
   created_at: string;
 }
 
-export interface Template {
+export type Template = {
   id: string;
   user_id: string;
   name: string;
   category: string;
   subject: string | null;
   body: string;
-  variables: string[];
+  /** Nullable in SQL: `variables TEXT[] DEFAULT '{}'`. */
+  variables: string[] | null;
   is_ai_generated: boolean;
   performance_score: number | null;
   created_at: string;
   updated_at: string;
 }
 
-export interface Settings {
+export type Settings = {
   id: string;
   user_id: string;
   unipile_account_id: string | null;
@@ -235,7 +252,7 @@ export interface Settings {
   updated_at: string;
 }
 
-export interface WebhookLog {
+export type WebhookLog = {
   id: string;
   event_type: string;
   payload: Record<string, unknown>;
@@ -246,82 +263,129 @@ export interface WebhookLog {
 
 // ─── Supabase Database type (for typed client) ──────────────────────────────
 
+/**
+ * Columns `increment_campaign_stat` will accept. Must stay in sync with the
+ * whitelist inside the SQL function — anything else raises at runtime.
+ */
+export type CampaignStatField =
+  | "total_leads"
+  | "invites_sent"
+  | "messages_sent"
+  | "invites_accepted"
+  | "replies_received"
+  | "positive_replies"
+  | "meetings_booked";
+
+/** Columns `increment_settings_counter` will accept. */
+export type SettingsCounterField =
+  | "invites_sent_today"
+  | "messages_sent_today"
+  | "profile_views_today";
+
+/**
+ * Insert shape for a table.
+ *
+ * `Req` names the columns Postgres genuinely requires — NOT NULL with no
+ * DEFAULT. Everything else is optional, because the database supplies a
+ * default or accepts NULL.
+ *
+ * The previous definition derived Insert as `Omit<Row, generated-columns>`,
+ * which marked every defaulted column (`status`, `icp_score`, the campaign
+ * counters, `tags`, `source`, …) as mandatory. Callers could not satisfy that
+ * without inventing values, so every insert in the codebase was written as
+ * `(supabase as any).from(...).insert(...)` with an eslint-disable — and the
+ * typed client provided no insert-time safety at all.
+ */
+type InsertOf<Row, Req extends keyof Row> = Pick<Row, Req> &
+  Partial<Omit<Row, Req>>;
+
 export interface Database {
   public: {
     Tables: {
       leads: {
         Row: Lead;
-        Insert: Omit<Lead, "id" | "full_name" | "created_at" | "updated_at"> &
-          Partial<Pick<Lead, "id" | "created_at" | "updated_at">>;
+        // full_name is a generated column — never write it.
+        Insert: InsertOf<Omit<Lead, "full_name">, "user_id" | "first_name" | "last_name">;
         Update: Partial<Omit<Lead, "id" | "full_name">>;
         Relationships: [];
       };
       campaigns: {
         Row: Campaign;
-        Insert: Omit<Campaign, "id" | "created_at" | "updated_at"> &
-          Partial<Pick<Campaign, "id" | "created_at" | "updated_at">>;
+        Insert: InsertOf<Campaign, "user_id" | "name">;
         Update: Partial<Omit<Campaign, "id">>;
         Relationships: [];
       };
       sequences: {
         Row: Sequence;
-        Insert: Omit<Sequence, "id" | "created_at" | "updated_at"> &
-          Partial<Pick<Sequence, "id" | "created_at" | "updated_at">>;
+        Insert: InsertOf<Sequence, "user_id" | "name">;
         Update: Partial<Omit<Sequence, "id">>;
         Relationships: [];
       };
       sequence_steps: {
         Row: SequenceStep;
-        Insert: Omit<SequenceStep, "id" | "created_at"> &
-          Partial<Pick<SequenceStep, "id" | "created_at">>;
+        Insert: InsertOf<SequenceStep, "sequence_id" | "step_order" | "step_type">;
         Update: Partial<Omit<SequenceStep, "id">>;
         Relationships: [];
       };
       sequence_enrollments: {
         Row: SequenceEnrollment;
-        Insert: Omit<SequenceEnrollment, "id" | "created_at" | "updated_at"> &
-          Partial<Pick<SequenceEnrollment, "id" | "created_at" | "updated_at">>;
+        Insert: InsertOf<
+          SequenceEnrollment,
+          "lead_id" | "campaign_id" | "sequence_id"
+        >;
         Update: Partial<Omit<SequenceEnrollment, "id">>;
         Relationships: [];
       };
       messages: {
         Row: Message;
-        Insert: Omit<Message, "id" | "created_at"> &
-          Partial<Pick<Message, "id" | "created_at">>;
+        Insert: InsertOf<Message, "user_id" | "direction" | "message_text">;
         Update: Partial<Omit<Message, "id">>;
         Relationships: [];
       };
       activities: {
         Row: Activity;
-        Insert: Omit<Activity, "id" | "created_at"> &
-          Partial<Pick<Activity, "id" | "created_at">>;
+        Insert: InsertOf<Activity, "user_id" | "activity_type">;
         Update: Partial<Omit<Activity, "id">>;
         Relationships: [];
       };
       templates: {
         Row: Template;
-        Insert: Omit<Template, "id" | "created_at" | "updated_at"> &
-          Partial<Pick<Template, "id" | "created_at" | "updated_at">>;
+        Insert: InsertOf<Template, "user_id" | "name" | "body">;
         Update: Partial<Omit<Template, "id">>;
         Relationships: [];
       };
       settings: {
         Row: Settings;
-        Insert: Pick<Settings, "user_id"> &
-          Partial<Omit<Settings, "user_id">>;
+        Insert: InsertOf<Settings, "user_id">;
         Update: Partial<Omit<Settings, "id" | "user_id">>;
         Relationships: [];
       };
       webhook_logs: {
         Row: WebhookLog;
-        Insert: Omit<WebhookLog, "id" | "created_at"> &
-          Partial<Pick<WebhookLog, "id" | "created_at">>;
+        Insert: InsertOf<WebhookLog, "event_type" | "payload">;
         Update: Partial<Omit<WebhookLog, "id">>;
         Relationships: [];
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      increment_campaign_stat: {
+        Args: {
+          p_campaign_id: string;
+          p_field: CampaignStatField;
+          p_delta: number;
+        };
+        Returns: undefined;
+      };
+      increment_settings_counter: {
+        Args: {
+          p_user_id: string;
+          p_field: SettingsCounterField;
+          p_delta: number;
+        };
+        Returns: number;
+      };
+    };
     Enums: {
       lead_status: LeadStatus;
       campaign_status: CampaignStatus;

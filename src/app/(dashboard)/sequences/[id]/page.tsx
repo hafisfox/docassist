@@ -66,8 +66,12 @@ export function createDefaultStep(type: SequenceStepType, order: number): LocalS
     message_body: null,
     delay_hours: type === "delay" ? 0 : null,
     delay_days: type === "delay" ? 1 : null,
-    condition_field: null,
-    condition_value: null,
+    // Condition steps must carry both field and value or the whole sequence
+    // fails validation on save. Seed the canonical pairing used by the default
+    // sequence (see constants/sequenceDefaults.ts) so a freshly added step is
+    // valid; the user can change it in the step editor.
+    condition_field: type === "condition" ? "status" : null,
+    condition_value: type === "condition" ? "replied" : null,
     on_true_step: null,
     on_false_step: null,
   }
@@ -168,8 +172,8 @@ export default function SequenceBuilderPage() {
       setSteps((updated.steps ?? []).map(toLocalStep))
       setDirty(false)
       toast.success("Sequence saved")
-    } catch {
-      toast.error("Failed to save sequence")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save sequence")
     } finally {
       setSaving(false)
     }

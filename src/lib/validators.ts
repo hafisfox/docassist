@@ -1,5 +1,23 @@
 import { z } from "zod";
 
+// ─── PostgREST filter escaping ───────────────────────────────────────
+
+/**
+ * Escapes a user-supplied value for interpolation into a PostgREST `or()`
+ * filter string.
+ *
+ * `or()` takes a raw filter grammar where `,` separates terms and `(`/`)`
+ * group them, so unescaped user input can restructure the query. PostgREST
+ * lets a value be double-quoted to make reserved characters literal; inside
+ * those quotes only `\` and `"` need escaping.
+ *
+ * Callers must wrap the result in double quotes:
+ *   `name.ilike."%${escapeOrFilterValue(search)}%"`
+ */
+export function escapeOrFilterValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 // ─── Enum values (mirroring DB enums) ────────────────────────────────
 
 const leadStatusValues = [
@@ -95,23 +113,20 @@ export const bulkImportLeadsSchema = z.object({
 
 export type BulkImportLeadsInput = z.infer<typeof bulkImportLeadsSchema>;
 
+/**
+ * The leads filter is a checkbox multi-select that serialises to
+ * `?status=replied,interested`. Accepts one or many, and always yields an
+ * array so callers can use `.in("status", …)`.
+ */
+export const leadStatusListSchema = z
+  .string()
+  .transform((s) => s.split(",").map((v) => v.trim()).filter(Boolean))
+  .pipe(z.array(z.enum(leadStatusValues)).min(1));
+
 export const listLeadsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(25),
-  status: z.enum([
-    "new",
-    "enriched",
-    "invite_sent",
-    "invite_accepted",
-    "invite_expired",
-    "message_sent",
-    "replied",
-    "interested",
-    "not_interested",
-    "meeting_booked",
-    "converted",
-    "do_not_contact",
-  ] as const).optional(),
+  status: leadStatusListSchema.optional(),
   campaign_id: z.string().uuid().optional(),
   icp_segment: z.enum(icpSegmentValues).optional(),
   account_type: z.string().max(64).optional(),
@@ -346,8 +361,10 @@ export type CreateSequenceStepInput = z.infer<typeof createSequenceStepSchema>;
 // ─── Settings ────────────────────────────────────────────────────────
 
 export const updateSettingsSchema = z.object({
-  unipile_account_id: z.string().optional(),
-  unipile_account_status: z.string().optional(),
+  // Nullable: the settings form sends `null` to clear these, and a user with no
+  // LinkedIn account connected yet must still be able to save the other fields.
+  unipile_account_id: z.string().nullable().optional(),
+  unipile_account_status: z.string().nullable().optional(),
   max_daily_invites: z.number().int().min(1).max(25).optional(),
   max_daily_messages: z.number().int().min(1).max(150).optional(),
   max_daily_profile_views: z.number().int().min(1).max(80).optional(),
@@ -482,7 +499,7 @@ export type BulkActionInput = z.infer<typeof bulkActionSchema>;
 // ─── Export Leads Query ───────────────────────────────────────────────
 
 export const exportLeadsQuerySchema = z.object({
-  status: z.enum(leadStatusValues).optional(),
+  status: leadStatusListSchema.optional(),
   campaign_id: z.string().uuid().optional(),
   icp_segment: z.enum(icpSegmentValues).optional(),
   location: z.string().max(200).optional(),
@@ -491,6 +508,22 @@ export const exportLeadsQuerySchema = z.object({
 });
 
 export type ExportLeadsQuery = z.infer<typeof exportLeadsQuerySchema>;
+
+// ─── Analytics ───────────────────────────────────────────────────────
+
+/** `?from=YYYY-MM-DD&to=YYYY-MM-DD` custom range for GET /api/analytics. */
+export const analyticsRangeSchema = z
+  .object({
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD"),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD"),
+  })
+  .refine(
+    (r) =>
+      !Number.isNaN(Date.parse(`${r.from}T00:00:00.000Z`)) &&
+      !Number.isNaN(Date.parse(`${r.to}T23:59:59.999Z`)),
+    { message: "Invalid calendar date" },
+  )
+  .refine((r) => r.from <= r.to, { message: "`from` must not be after `to`" });
 
 // ─── n8n Automation Params ───────────────────────────────────────────
 

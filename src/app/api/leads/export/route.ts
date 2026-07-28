@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { exportLeadsQuerySchema } from "@/lib/validators";
+import { exportLeadsQuerySchema, escapeOrFilterValue } from "@/lib/validators";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { AppError } from "@/lib/errors";
 import type { Lead } from "@/types/database";
@@ -31,10 +31,20 @@ const CSV_HEADERS = [
   "Created At",
 ];
 
+// Leading characters that make Excel / Sheets treat a cell as a formula.
+const FORMULA_TRIGGERS = ["=", "+", "-", "@", "\t", "\r"];
+
 function escapeCSV(value: unknown): string {
   if (value == null) return "";
-  const str = String(value);
-  if (str.includes(",") || str.includes("\n") || str.includes('"')) {
+  let str = String(value);
+
+  // Lead names and companies arrive unvalidated from LinkedIn scraping and the
+  // n8n webhook, so neutralise spreadsheet formula injection before quoting.
+  if (FORMULA_TRIGGERS.some((c) => str.startsWith(c))) {
+    str = `'${str}`;
+  }
+
+  if (str.includes(",") || str.includes("\n") || str.includes("\r") || str.includes('"')) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
@@ -120,13 +130,14 @@ export async function GET(request: NextRequest) {
         query = query.in("id", idList);
       }
     } else {
-      if (status) query = query.eq("status", status);
+      if (status) query = query.in("status", status);
       if (campaign_id) query = query.eq("campaign_id", campaign_id);
       if (icp_segment) query = query.eq("icp_segment", icp_segment);
       if (location) query = query.ilike("location", `%${location}%`);
       if (search) {
+        const s = escapeOrFilterValue(search);
         query = query.or(
-          `full_name.ilike.%${search}%,company.ilike.%${search}%,job_title.ilike.%${search}%`,
+          `full_name.ilike."%${s}%",company.ilike."%${s}%",job_title.ilike."%${s}%"`,
         );
       }
     }

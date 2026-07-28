@@ -37,11 +37,16 @@ export function useRealtimeMessages() {
   useEffect(() => {
     const supabase = supabaseRef.current;
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    // The channel is created after an await, so a teardown that happens before
+    // getUser() resolves would find `channel` still null and remove nothing,
+    // leaking the channel this callback goes on to create. React 19 StrictMode
+    // triggers exactly that on every mount in development.
+    let cancelled = false;
 
     async function subscribe() {
       const { data } = await supabase.auth.getUser();
       const userId = data.user?.id;
-      if (!userId) return;
+      if (!userId || cancelled) return;
 
       channel = supabase
         .channel("realtime-messages-global")
@@ -84,13 +89,21 @@ export function useRealtimeMessages() {
           },
         )
         .subscribe();
+
+      // Torn down while subscribing — clean up what we just created.
+      if (cancelled) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
     }
 
     subscribe();
 
     return () => {
+      cancelled = true;
       if (channel) {
         supabase.removeChannel(channel);
+        channel = null;
       }
     };
   }, []);

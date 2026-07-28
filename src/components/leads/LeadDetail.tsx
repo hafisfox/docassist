@@ -75,14 +75,17 @@ function LeadDetail({ lead, loading, onUpdateTags, onUpdateNotes }: LeadDetailPr
   function handleAddTag() {
     if (!lead) return;
     const tag = tagInput.trim();
-    if (!tag || lead.tags.includes(tag)) return;
-    onUpdateTags([...lead.tags, tag]);
+    // `tags` is nullable in SQL — a row written with an explicit null would
+    // otherwise crash the panel here.
+    const tags = lead.tags ?? [];
+    if (!tag || tags.includes(tag)) return;
+    onUpdateTags([...tags, tag]);
     setTagInput("");
   }
 
   function handleRemoveTag(tag: string) {
     if (!lead) return;
-    onUpdateTags(lead.tags.filter((t) => t !== tag));
+    onUpdateTags((lead.tags ?? []).filter((t) => t !== tag));
   }
 
   function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -185,7 +188,7 @@ function LeadDetail({ lead, loading, onUpdateTags, onUpdateNotes }: LeadDetailPr
             Tags
           </h3>
           <div className="flex flex-wrap gap-1.5">
-            {lead.tags.map((tag) => (
+            {(lead.tags ?? []).map((tag) => (
               <Badge
                 key={tag}
                 variant="secondary"

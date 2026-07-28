@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createLeadSchema, listLeadsQuerySchema } from "@/lib/validators";
+import { createLeadSchema, listLeadsQuerySchema, escapeOrFilterValue } from "@/lib/validators";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { AppError } from "@/lib/errors";
 import type { Lead } from "@/types/database";
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       .select("*", { count: "exact" });
 
     if (status) {
-      query = query.eq("status", status);
+      query = query.in("status", status);
     }
 
     if (campaign_id) {
@@ -82,8 +82,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      const s = escapeOrFilterValue(search);
       query = query.or(
-        `full_name.ilike.%${search}%,company.ilike.%${search}%,job_title.ilike.%${search}%`,
+        `full_name.ilike."%${s}%",company.ilike."%${s}%",job_title.ilike."%${s}%"`,
       );
     }
 
@@ -177,8 +178,7 @@ export async function POST(request: Request) {
     );
 
     // ── Insert ───────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data, error: dbError } = await (supabase as any)
+    const { data, error: dbError } = await supabase
       .from("leads")
       .insert({
         user_id: user.id,
@@ -186,11 +186,6 @@ export async function POST(request: Request) {
         source: parsed.data.source ?? "manual",
         tags: parsed.data.tags ?? [],
         status: "new",
-        icp_score: 0,
-        enrichment_data: {},
-        skills: [],
-        education: [],
-        experience: [],
       })
       .select()
       .single();
@@ -209,8 +204,7 @@ export async function POST(request: Request) {
 
     // ── Log activity ─────────────────────────────────────────────────
     if (lead) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("activities").insert({
+      await supabase.from("activities").insert({
         user_id: user.id,
         lead_id: lead.id,
         campaign_id: lead.campaign_id ?? null,

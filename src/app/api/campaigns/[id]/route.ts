@@ -66,8 +66,7 @@ export async function GET(
     const campaignRow = campaign as Campaign;
 
     // Fetch leads for this campaign
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data: leads, error: leadsError, count: leadCount } = await (supabase as any)
+    const { data: leads, error: leadsError, count: leadCount } = await supabase
       .from("leads")
       .select("*", { count: "exact" })
       .eq("campaign_id", id)
@@ -147,7 +146,22 @@ export async function PATCH(
     const body = await request.json();
 
     // Handle lead_ids separately — not part of campaign update schema
-    const { lead_ids, ...campaignFields } = body as { lead_ids?: string[] } & Record<string, unknown>;
+    const { lead_ids: rawLeadIds, ...campaignFields } = body as Record<string, unknown>;
+
+    // Validate rather than trusting the cast: a non-array throws on `.length`
+    // and a non-UUID string makes Postgres raise 22P02, both surfacing as 500s.
+    const leadIdsParsed = z.array(z.string().uuid()).optional().safeParse(rawLeadIds);
+    if (!leadIdsParsed.success) {
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          details: { lead_ids: ["lead_ids must be an array of UUIDs"] },
+          correlationId,
+        },
+        { status: 400 },
+      );
+    }
+    const lead_ids = leadIdsParsed.data;
 
     const parsed = updateCampaignSchema.safeParse(campaignFields);
 
@@ -170,9 +184,21 @@ export async function PATCH(
     // Update campaign fields
     const updateData: Record<string, unknown> = { ...parsed.data };
 
-    // Set timestamps based on status transitions
-    if (parsed.data.status === "active" && !updateData.started_at) {
-      updateData.started_at = new Date().toISOString();
+    // Set timestamps based on status transitions.
+    // `started_at` must come from the stored row, not the payload:
+    // updateCampaignSchema has no started_at key and Zod strips unknowns, so
+    // `updateData.started_at` is always undefined and a payload-based guard
+    // would reset the original start time on every pause→resume cycle.
+    if (parsed.data.status === "active") {
+      const { data: existing } = await supabase
+        .from("campaigns")
+        .select("started_at")
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .single();
+
+      updateData.started_at =
+        (existing?.started_at as string | null) ?? new Date().toISOString();
       updateData.paused_at = null;
     } else if (parsed.data.status === "paused") {
       updateData.paused_at = new Date().toISOString();
@@ -181,8 +207,7 @@ export async function PATCH(
     }
 
     if (Object.keys(updateData).length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-      const { error: updateError } = await (supabase as any)
+      const { error: updateError } = await supabase
         .from("campaigns")
         .update(updateData)
         .eq("id", id);
@@ -199,8 +224,7 @@ export async function PATCH(
 
     // Assign leads to campaign if lead_ids provided
     if (lead_ids && lead_ids.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-      const { error: assignError } = await (supabase as any)
+      const { error: assignError } = await supabase
         .from("leads")
         .update({ campaign_id: id })
         .in("id", lead_ids);
@@ -220,8 +244,7 @@ export async function PATCH(
         .select("*", { count: "exact", head: true })
         .eq("campaign_id", id);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-      await (supabase as any)
+      await supabase
         .from("campaigns")
         .update({ total_leads: leadCount ?? 0 })
         .eq("id", id);

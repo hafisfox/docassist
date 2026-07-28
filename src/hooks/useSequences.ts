@@ -28,7 +28,16 @@ async function apiFetch<T>(
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(data.error ?? `Request failed with status ${res.status}`);
+    // Surface Zod field errors (e.g. "condition steps require condition_field")
+    // rather than collapsing every 400 into a bare "Validation failed".
+    const details = data.details as Record<string, string[] | undefined> | undefined;
+    const fieldErrors = details
+      ? Object.entries(details)
+          .map(([field, msgs]) => `${field}: ${(msgs ?? []).join(", ")}`)
+          .join("; ")
+      : "";
+    const base = data.error ?? `Request failed with status ${res.status}`;
+    throw new Error(fieldErrors ? `${base} — ${fieldErrors}` : base);
   }
 
   return data as T;

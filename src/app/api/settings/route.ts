@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { updateSettingsSchema } from "@/lib/validators";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
-import type { Settings } from "@/types/database";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database, Settings } from "@/types/database";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -11,14 +12,13 @@ interface SettingsWithUsage extends Settings {
   remaining_daily_invites: number;
   /** How many messages remain for today */
   remaining_daily_messages: number;
-  /** Profile view remaining (no DB counter yet — returns the configured max) */
+  /** How many profile views remain for today */
   remaining_daily_profile_views: number;
 }
 
 /** Reset today's counters if the UTC calendar day has rolled over. */
 async function resetCountersIfNewDay(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   settings: Settings
 ): Promise<Settings> {
   const resetAt = new Date(settings.counters_reset_at);
@@ -35,6 +35,10 @@ async function resetCountersIfNewDay(
     .update({
       invites_sent_today: 0,
       messages_sent_today: 0,
+      // Must match rateLimiter.resetCounters exactly. This route also stamps
+      // counters_reset_at, and it runs first (the usage meters poll it every
+      // 60s), so anything omitted here never gets reset by the rate limiter.
+      profile_views_today: 0,
       counters_reset_at: now.toISOString(),
     })
     .eq("user_id", settings.user_id)
@@ -56,8 +60,10 @@ function withUsageCounts(settings: Settings): SettingsWithUsage {
       0,
       settings.max_daily_messages - settings.messages_sent_today
     ),
-    // profile_views_today not tracked in DB yet
-    remaining_daily_profile_views: settings.max_daily_profile_views,
+    remaining_daily_profile_views: Math.max(
+      0,
+      settings.max_daily_profile_views - settings.profile_views_today
+    ),
   };
 }
 
@@ -87,8 +93,7 @@ export async function GET() {
 
     if (error && error.code === "PGRST116") {
       // No settings row yet — create one with defaults
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-      const { data: newSettings, error: insertError } = await (supabase as any)
+      const { data: newSettings, error: insertError } = await supabase
         .from("settings")
         .insert({ user_id: user.id })
         .select("*")
@@ -177,8 +182,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data: settings, error } = await (supabase as any)
+    const { data: settings, error } = await supabase
       .from("settings")
       .update(updates)
       .eq("user_id", user.id)

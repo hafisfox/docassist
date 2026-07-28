@@ -59,8 +59,7 @@ export async function POST(request: Request) {
 
     // ── Fetch template from DB when templateId is provided ─────────────────
     if (templateId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2 generic resolution
-      const { data: tpl, error: tplError } = await (supabase as any)
+      const { data: tpl, error: tplError } = await supabase
         .from("templates")
         .select("body, category")
         .eq("id", templateId)
@@ -74,7 +73,15 @@ export async function POST(request: Request) {
       }
 
       templateBody = template.body
-      templateCategory = template.category as typeof templateCategory
+      // `category` is a free-text column; only map values the prompt builder
+      // actually knows, so an unexpected one falls back rather than flowing
+      // through as an unhandled category.
+      templateCategory =
+        template.category === "connection_request" ||
+        template.category === "message" ||
+        template.category === "follow_up"
+          ? template.category
+          : "message"
     }
 
     if (!templateBody) {
@@ -88,8 +95,7 @@ export async function POST(request: Request) {
     let lead: Lead | null = null
 
     if (leadId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error: leadError } = await (supabase as any)
+      const { data, error: leadError } = await supabase
         .from("leads")
         .select("*")
         .eq("id", leadId)
@@ -103,8 +109,7 @@ export async function POST(request: Request) {
       }
     } else if (chatId) {
       // Resolve lead by unipile_chat_id (inbox context — non-fatal if not found)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error: leadError } = await (supabase as any)
+      const { data, error: leadError } = await supabase
         .from("leads")
         .select("*")
         .eq("unipile_chat_id", chatId)

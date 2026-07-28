@@ -18,6 +18,7 @@ import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "crypto";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { runSequenceExecutor } from "@/lib/queue/sequenceExecutor";
+import { autoPauseLowAcceptanceCampaigns } from "@/lib/queue/accountGuard";
 import { n8nOwnsExecution } from "@/lib/automation";
 import type { Database } from "@/types/database";
 
@@ -55,27 +56,43 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ── Cutover guard ─────────────────────────────────────────────────────────
-  // When n8n owns execution the local sequence executor must not run, or both
-  // engines would send to the same leads. Return a logged no-op.
-  if (n8nOwnsExecution()) {
-    log.info({ correlationId }, "sequence executor skipped — AUTOMATION_ENGINE=n8n");
-    return NextResponse.json(
-      { skipped: true, engine: "n8n", correlationId },
-      { status: 200 },
-    );
-  }
-
   try {
     const supabase = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // ── Account guard ───────────────────────────────────────────────────────
+    // Runs before the cutover check and regardless of which engine sends:
+    // protecting the LinkedIn account from a collapsing acceptance rate matters
+    // just as much when n8n owns execution. Previously this lived in
+    // GET /api/health, where a browser poll drove it.
+    const campaignsAutoPaused = await autoPauseLowAcceptanceCampaigns(
+      supabase,
+      correlationId,
+    );
+
+    // ── Cutover guard ───────────────────────────────────────────────────────
+    // When n8n owns execution the local sequence executor must not run, or both
+    // engines would send to the same leads. Return a logged no-op.
+    if (n8nOwnsExecution()) {
+      log.info({ correlationId }, "sequence executor skipped — AUTOMATION_ENGINE=n8n");
+      return NextResponse.json(
+        { skipped: true, engine: "n8n", campaignsAutoPaused, correlationId },
+        { status: 200 },
+      );
+    }
+
     const result = await runSequenceExecutor(supabase);
 
-    log.info({ ...result, correlationId }, "cron sequence executor run completed");
-    return NextResponse.json({ ...result, correlationId }, { status: 200 });
+    log.info(
+      { ...result, campaignsAutoPaused, correlationId },
+      "cron sequence executor run completed",
+    );
+    return NextResponse.json(
+      { ...result, campaignsAutoPaused, correlationId },
+      { status: 200 },
+    );
   } catch (err) {
     log.error({ error: err, correlationId }, "cron sequence executor run failed");
     return NextResponse.json(

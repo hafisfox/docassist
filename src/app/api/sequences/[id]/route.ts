@@ -164,8 +164,7 @@ export async function PATCH(
 
     // Update sequence metadata if any fields provided
     if (Object.keys(sequenceFields).length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-      const { error: updateError } = await (supabase as any)
+      const { error: updateError } = await supabase
         .from("sequences")
         .update(sequenceFields)
         .eq("id", id);
@@ -189,6 +188,15 @@ export async function PATCH(
 
       if (deleteError) {
         log.error({ error: deleteError }, "failed to delete old steps");
+        // 23503 = FK violation. messages.sequence_step_id is ON DELETE SET NULL
+        // as of migration 20240101000015, so this should no longer fire — but a
+        // database that hasn't been migrated yet would 500 with no explanation.
+        if (deleteError.code === "23503") {
+          throw new AppError(
+            "Cannot rewrite steps: existing messages still reference them. Apply the latest database migrations.",
+            { statusCode: 409, correlationId, context: { code: deleteError.code } },
+          );
+        }
         throw new AppError("Failed to update sequence steps", {
           statusCode: 500,
           correlationId,
@@ -211,8 +219,7 @@ export async function PATCH(
           on_false_step: step.on_false_step ?? null,
         }));
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-        const { error: insertError } = await (supabase as any)
+        const { error: insertError } = await supabase
           .from("sequence_steps")
           .insert(stepsToInsert);
 
@@ -314,10 +321,19 @@ export async function DELETE(
     log.info({ userId: user.id, sequenceId: id }, "delete sequence request");
 
     // Delete steps first (cascade may not be set)
-    await supabase
+    const { error: stepsDeleteError } = await supabase
       .from("sequence_steps")
       .delete()
       .eq("sequence_id", id);
+
+    if (stepsDeleteError) {
+      log.error({ error: stepsDeleteError }, "failed to delete sequence steps");
+      throw new AppError("Failed to delete sequence steps", {
+        statusCode: stepsDeleteError.code === "23503" ? 409 : 500,
+        correlationId,
+        context: { code: stepsDeleteError.code },
+      });
+    }
 
     const { data: sequence, error: dbError } = await supabase
       .from("sequences")
@@ -331,6 +347,18 @@ export async function DELETE(
         return NextResponse.json(
           { error: "Sequence not found", correlationId },
           { status: 404 },
+        );
+      }
+      // campaigns.sequence_id / sequence_enrollments.sequence_id still point
+      // here — a conflict the caller can resolve, not a server fault.
+      if (dbError.code === "23503") {
+        return NextResponse.json(
+          {
+            error:
+              "Sequence is still in use by a campaign or has active enrollments. Detach it first.",
+            correlationId,
+          },
+          { status: 409 },
         );
       }
       log.error({ error: dbError }, "failed to delete sequence");

@@ -29,8 +29,7 @@ export async function POST(request: Request) {
     }
 
     if (!accountId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-      const { data: settings } = await (supabase as any)
+      const { data: settings } = await supabase
         .from("settings")
         .select("unipile_account_id")
         .eq("user_id", user.id)
@@ -51,8 +50,7 @@ export async function POST(request: Request) {
     await client.testConnection(accountId, correlationId);
 
     // Persist connected status
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
+    await supabase
       .from("settings")
       .update({ unipile_account_status: "connected" })
       .eq("user_id", user.id);
@@ -67,8 +65,7 @@ export async function POST(request: Request) {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any)
+          await supabase
             .from("settings")
             .update({ unipile_account_status: "error" })
             .eq("user_id", user.id);

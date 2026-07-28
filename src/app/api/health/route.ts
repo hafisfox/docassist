@@ -3,10 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { getCircuitBreaker } from "@/lib/queue/circuitBreaker";
 import type { CircuitBreakerStatus } from "@/lib/queue/circuitBreaker";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
 
-// Minimum invites before flagging low acceptance rate (avoids false positives on new accounts)
-const MIN_INVITES_FOR_ACCEPTANCE_CHECK = 20;
-const ACCEPTANCE_RATE_WARNING_THRESHOLD = 20; // percent
+// Thresholds are shared with the account guard that acts on them, so the
+// banner and the auto-pause can never disagree about what "low" means.
+import {
+  MIN_INVITES_FOR_ACCEPTANCE_CHECK,
+  ACCEPTANCE_RATE_WARNING_THRESHOLD,
+} from "@/lib/queue/accountGuard";
 
 // ── Response type ─────────────────────────────────────────────────────────────
 
@@ -34,8 +39,11 @@ export interface HealthResponse {
     invites_accepted_total: number;
     /** True when acceptance_rate < 20% and invites_sent >= MIN_INVITES_FOR_ACCEPTANCE_CHECK */
     acceptance_rate_warning: boolean;
-    /** Active campaigns auto-paused on this request due to low acceptance rate */
-    campaigns_auto_paused: number;
+    /**
+     * Active campaigns that the account guard will pause on its next cron run
+     * because acceptance is below threshold. Zero when there is no warning.
+     */
+    campaigns_at_risk: number;
     /** Activity rows with type "error" in the last 7 days */
     recent_error_count: number;
   };
@@ -44,8 +52,7 @@ export interface HealthResponse {
 // ── Sub-checks ────────────────────────────────────────────────────────────────
 
 async function checkSupabase(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any
+  supabase: SupabaseClient<Database>
 ): Promise<{ status: HealthComponentStatus; latency_ms: number; message?: string }> {
   const start = Date.now();
   try {
@@ -150,7 +157,11 @@ export async function GET(): Promise<NextResponse> {
           .gte("created_at", sevenDaysAgo),
       ]);
 
-    const cbStatus = getCircuitBreaker().getStatus();
+    // Force a read so the reported state reflects the shared breaker rather
+    // than this isolate's cold copy.
+    const breaker = getCircuitBreaker();
+    await breaker.hydrate(true);
+    const cbStatus = breaker.getStatus();
 
     // ── Acceptance rate ───────────────────────────────────────────────────────
 
@@ -181,56 +192,13 @@ export async function GET(): Promise<NextResponse> {
       acceptanceRate !== null &&
       acceptanceRate < ACCEPTANCE_RATE_WARNING_THRESHOLD;
 
-    // ── Auto-pause active campaigns if acceptance rate is dangerously low ─────
-
-    let campaignsAutoPaused = 0;
-
-    if (acceptanceRateWarning) {
-      const activeCampaigns = campaigns.filter((c) => c.status === "active");
-
-      if (activeCampaigns.length > 0) {
-        const now = new Date().toISOString();
-        const campaignIds = activeCampaigns.map((c) => c.id);
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: pauseError } = await (supabase as any)
-          .from("campaigns")
-          .update({ status: "paused", paused_at: now })
-          .in("id", campaignIds);
-
-        if (!pauseError) {
-          campaignsAutoPaused = activeCampaigns.length;
-
-          // Pause active sequence enrollments for these campaigns
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any)
-            .from("sequence_enrollments")
-            .update({ status: "paused" })
-            .in("campaign_id", campaignIds)
-            .eq("status", "active");
-
-          // Log an activity for each auto-paused campaign
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).from("activities").insert(
-            campaignIds.map((id) => ({
-              user_id: user.id,
-              campaign_id: id,
-              activity_type: "campaign_paused",
-              description: `Campaign auto-paused: invitation acceptance rate dropped below ${ACCEPTANCE_RATE_WARNING_THRESHOLD}%`,
-              metadata: {
-                reason: "low_acceptance_rate",
-                acceptance_rate: acceptanceRate,
-              },
-            }))
-          );
-
-          log.warn(
-            { acceptanceRate, campaignsAutoPaused, userId: user.id },
-            "campaigns auto-paused due to low acceptance rate"
-          );
-        }
-      }
-    }
+    // ── Campaigns exposed to the low acceptance rate ──────────────────────────
+    // Read only. The actual auto-pause lives in the cron path
+    // (autoPauseLowAcceptanceCampaigns) — this endpoint is polled every 60 s by
+    // two components and is cacheable/prefetchable, so it must not mutate.
+    const campaignsAtRisk = acceptanceRateWarning
+      ? campaigns.filter((c) => c.status === "active").length
+      : 0;
 
     const recentErrorCount = errorCountResult.count ?? 0;
 
@@ -261,7 +229,7 @@ export async function GET(): Promise<NextResponse> {
         invites_sent_total: totalInvitesSent,
         invites_accepted_total: totalInvitesAccepted,
         acceptance_rate_warning: acceptanceRateWarning,
-        campaigns_auto_paused: campaignsAutoPaused,
+        campaigns_at_risk: campaignsAtRisk,
         recent_error_count: recentErrorCount,
       },
     };

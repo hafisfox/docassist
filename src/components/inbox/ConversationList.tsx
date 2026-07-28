@@ -171,6 +171,10 @@ interface ConversationListProps {
   onSearchChange: (value: string) => void;
   onFilterChange: (filter: InboxFilter) => void;
   onSync: () => void;
+  /** True when the API returned a cursor — more chats are available. */
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
 }
 
 export function ConversationList({
@@ -188,6 +192,9 @@ export function ConversationList({
   onSearchChange,
   onFilterChange,
   onSync,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: ConversationListProps) {
   return (
     <div className="flex h-full flex-col border-r">
@@ -274,6 +281,20 @@ export function ConversationList({
               />
             );
           })
+        )}
+
+        {hasMore && !loading && (
+          <div className="p-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={onLoadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? "Loading…" : "Load more"}
+            </Button>
+          </div>
         )}
       </div>
     </div>

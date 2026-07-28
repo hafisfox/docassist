@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createSequenceSchema } from "@/lib/validators";
+import { createSequenceSchema, escapeOrFilterValue } from "@/lib/validators";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { AppError } from "@/lib/errors";
 import type { Sequence, SequenceStep, SequenceEnrollment } from "@/types/database";
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const search = searchParams.get("search") ?? undefined;
+    const search = searchParams.get("search")?.slice(0, 200) || undefined;
 
     log.info(
       { userId: user.id, search },
@@ -36,8 +36,9 @@ export async function GET(request: NextRequest) {
       .select("*");
 
     if (search) {
+      const s = escapeOrFilterValue(search);
       query = query.or(
-        `name.ilike.%${search}%,description.ilike.%${search}%`,
+        `name.ilike."%${s}%",description.ilike."%${s}%"`,
       );
     }
 
@@ -60,8 +61,7 @@ export async function GET(request: NextRequest) {
     let stepCounts: Record<string, number> = {};
 
     if (sequenceIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-      const { data: steps, error: stepsError } = await (supabase as any)
+      const { data: steps, error: stepsError } = await supabase
         .from("sequence_steps")
         .select("sequence_id")
         .in("sequence_id", sequenceIds);
@@ -79,8 +79,7 @@ export async function GET(request: NextRequest) {
     let usageCounts: Record<string, number> = {};
 
     if (sequenceIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-      const { data: enrollments, error: enrollError } = await (supabase as any)
+      const { data: enrollments, error: enrollError } = await supabase
         .from("sequence_enrollments")
         .select("sequence_id")
         .in("sequence_id", sequenceIds);
@@ -163,8 +162,7 @@ export async function POST(request: Request) {
       "create sequence request",
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data, error: dbError } = await (supabase as any)
+    const { data, error: dbError } = await supabase
       .from("sequences")
       .insert({
         user_id: user.id,

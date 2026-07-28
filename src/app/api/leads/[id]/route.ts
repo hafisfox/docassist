@@ -130,8 +130,7 @@ export async function PATCH(
       "update lead request",
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data, error: dbError } = await (supabase as any)
+    const { data, error: dbError } = await supabase
       .from("leads")
       .update(parsed.data)
       .eq("id", id)
@@ -158,8 +157,7 @@ export async function PATCH(
 
     // ── Log activity when status changes ─────────────────────────────
     if (parsed.data.status && lead) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("activities").insert({
+      await supabase.from("activities").insert({
         user_id: user.id,
         lead_id: id,
         campaign_id: lead.campaign_id ?? null,
@@ -222,8 +220,7 @@ export async function DELETE(
 
     log.info({ userId: user.id, leadId: id }, "delete lead request (soft)");
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase-js v2.100 generic resolution issue
-    const { data, error: dbError } = await (supabase as any)
+    const { data, error: dbError } = await supabase
       .from("leads")
       .update({ status: "do_not_contact" })
       .eq("id", id)
@@ -250,8 +247,7 @@ export async function DELETE(
 
     // ── Log activity ─────────────────────────────────────────────────
     if (lead) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("activities").insert({
+      await supabase.from("activities").insert({
         user_id: user.id,
         lead_id: id,
         campaign_id: lead.campaign_id ?? null,
