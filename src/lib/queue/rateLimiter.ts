@@ -149,6 +149,49 @@ export async function checkAndIncrementLimit(
 }
 
 /**
+ * Hand a claimed rate-limit slot back.
+ *
+ * `checkAndIncrementLimit` consumes the slot *before* the LinkedIn call, which
+ * is the right order — an increment that lands after the send would let two
+ * concurrent runs both pass the check. The cost is that a send which never
+ * happened still burns a slot, and with a 25/day invite cap those slots are
+ * scarce enough to matter: an open circuit breaker rejects every call in the
+ * batch, and without this the whole day's quota drains on sends that never
+ * reached LinkedIn.
+ *
+ * Only call this when the failure *proves* nothing was sent — a rejection
+ * raised locally before the request left the process. Never call it for an
+ * ambiguous network or 5xx failure: the safe assumption there is that the
+ * action did happen, and giving the slot back would let the account exceed its
+ * configured daily limit.
+ *
+ * Best-effort — a failure here only means the counter stays conservative.
+ */
+export async function releaseLimitSlot(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  type: LimitType,
+  correlationId?: string
+): Promise<void> {
+  const log = correlationId
+    ? withCorrelationId(correlationId).child({ userId, limitType: type })
+    : undefined;
+
+  const { error } = await supabase.rpc("increment_settings_counter", {
+    p_user_id: userId,
+    p_field: COUNTER_COLUMN[type] as SettingsCounterField,
+    p_delta: -1,
+  });
+
+  if (error) {
+    log?.error({ error }, "Failed to release rate limit slot — counter left claimed");
+    return;
+  }
+
+  log?.debug("Rate limit slot released after unsent action");
+}
+
+/**
  * Returns a promise that resolves after a random delay between `minMs` and
  * `maxMs` milliseconds (inclusive). Use this between LinkedIn API calls to
  * mimic human pacing.

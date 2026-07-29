@@ -186,7 +186,16 @@ export async function upsertLeadByProvider(
   ownerId: string,
   input: UpsertLeadInput,
 ): Promise<Lead> {
-  const existing = await findLeadByProviderId(supabase, input.linkedin_provider_id);
+  // Scoped to `ownerId` for the reason documented on findLead: this runs on the
+  // service-role client, so an unscoped match can return another tenant's row —
+  // and here that row would then be UPDATEd with this tenant's scrape data.
+  // ux_leads_user_provider is unique per (user_id, provider_id), so the scoped
+  // lookup is also the one that matches the constraint the insert races against.
+  const existing = await findLeadByProviderId(
+    supabase,
+    input.linkedin_provider_id,
+    ownerId,
+  );
   const now = new Date().toISOString();
 
   const sharedFields = {
@@ -243,11 +252,38 @@ export async function upsertLeadByProvider(
 
   // Race: a concurrent ingest may have inserted the same provider_id first.
   if (error) {
-    const again = await findLeadByProviderId(supabase, input.linkedin_provider_id);
+    const again = await findLeadByProviderId(
+      supabase,
+      input.linkedin_provider_id,
+      ownerId,
+    );
     if (again) return again;
     throw error;
   }
   return data as Lead;
+}
+
+// ── Message de-duplication ──────────────────────────────────────────────────────
+
+/** Postgres `unique_violation`, surfaced by supabase-js on `error.code`. */
+function isUniqueViolation(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === "23505";
+}
+
+/**
+ * Has this provider message already been stored? Backed by
+ * ux_messages_unipile_message_id, which is also what makes the check binding
+ * under concurrency — see the note in recordInboundMessage.
+ */
+async function messageExists(supabase: DB, messageId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("messages")
+    .select("id")
+    .eq("unipile_message_id", messageId)
+    .limit(1)
+    .maybeSingle();
+
+  return !!data;
 }
 
 // ── Inbound message (reply) ─────────────────────────────────────────────────────
@@ -273,23 +309,11 @@ export async function recordInboundMessage(
   const log = withCorrelationId(correlationId);
   const now = new Date().toISOString();
 
-  // Idempotency
-  if (messageId) {
-    const { data: existing } = await supabase
-      .from("messages")
-      .select("id")
-      .eq("unipile_message_id", messageId)
-      .limit(1)
-      .maybeSingle();
-    if (existing) {
-      log.info({ messageId }, "inbound message already stored — skipping duplicate");
-      return { skipped: true, newStatus: lead.status };
-    }
-  }
-
-  // Backfill chat_id onto the lead
-  if (chatId && !lead.unipile_chat_id) {
-    await supabase.from("leads").update({ unipile_chat_id: chatId }).eq("id", lead.id);
+  // Cheap fast path — the overwhelming majority of replays are caught here
+  // without attempting a write.
+  if (messageId && (await messageExists(supabase, messageId))) {
+    log.info({ messageId }, "inbound message already stored — skipping duplicate");
+    return { skipped: true, newStatus: lead.status };
   }
 
   const isOptOut = detectOptOut(text);
@@ -297,12 +321,13 @@ export async function recordInboundMessage(
   let newStatus: LeadStatus = isOptOut ? "do_not_contact" : "replied";
   if (!isOptOut && preserveStatuses.includes(lead.status)) newStatus = lead.status;
 
-  await supabase
-    .from("leads")
-    .update({ status: newStatus, last_replied_at: now })
-    .eq("id", lead.id);
-
-  await supabase.from("messages").insert({
+  // The insert — not the SELECT above — is the real idempotency gate, and it
+  // runs before any of the side effects below. Webhook providers retry hard, so
+  // two deliveries of one reply can both clear the SELECT; ordering the write
+  // first means the loser is rejected by ux_messages_unipile_message_id
+  // (migration 20240101000021) and returns here, instead of going on to bump
+  // replies_received a second time and skew the funnel the operator steers on.
+  const { error: insertError } = await supabase.from("messages").insert({
     user_id: lead.user_id,
     lead_id: lead.id,
     campaign_id: lead.campaign_id,
@@ -318,6 +343,24 @@ export async function recordInboundMessage(
     sequence_step_id: null,
     personalization_variables: {},
   });
+
+  if (insertError) {
+    if (isUniqueViolation(insertError)) {
+      log.info({ messageId }, "inbound message lost insert race — skipping duplicate");
+      return { skipped: true, newStatus: lead.status };
+    }
+    throw new Error(`recordInboundMessage: failed to store message: ${insertError.message}`);
+  }
+
+  // Backfill chat_id onto the lead
+  if (chatId && !lead.unipile_chat_id) {
+    await supabase.from("leads").update({ unipile_chat_id: chatId }).eq("id", lead.id);
+  }
+
+  await supabase
+    .from("leads")
+    .update({ status: newStatus, last_replied_at: now })
+    .eq("id", lead.id);
 
   // Pause (or fail on opt-out) active enrollments
   const newEnrollmentStatus = isOptOut ? "failed" : "paused";
@@ -396,21 +439,13 @@ export async function recordOutboundMessage(
 ): Promise<{ skipped: boolean }> {
   const now = new Date().toISOString();
 
-  if (messageId) {
-    const { data: existing } = await supabase
-      .from("messages")
-      .select("id")
-      .eq("unipile_message_id", messageId)
-      .limit(1)
-      .maybeSingle();
-    if (existing) return { skipped: true };
+  if (messageId && (await messageExists(supabase, messageId))) {
+    return { skipped: true };
   }
 
-  if (chatId && !lead.unipile_chat_id) {
-    await supabase.from("leads").update({ unipile_chat_id: chatId }).eq("id", lead.id);
-  }
-
-  await supabase.from("messages").insert({
+  // Insert first, for the same reason as the inbound path: it is the gate that
+  // actually holds under concurrent webhook deliveries.
+  const { error: insertError } = await supabase.from("messages").insert({
     user_id: lead.user_id,
     lead_id: lead.id,
     campaign_id: lead.campaign_id,
@@ -426,6 +461,15 @@ export async function recordOutboundMessage(
     sequence_step_id: null,
     personalization_variables: {},
   });
+
+  if (insertError) {
+    if (isUniqueViolation(insertError)) return { skipped: true };
+    throw new Error(`recordOutboundMessage: failed to store message: ${insertError.message}`);
+  }
+
+  if (chatId && !lead.unipile_chat_id) {
+    await supabase.from("leads").update({ unipile_chat_id: chatId }).eq("id", lead.id);
+  }
 
   await supabase
     .from("leads")

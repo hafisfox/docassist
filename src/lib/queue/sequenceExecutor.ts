@@ -13,9 +13,10 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
-import { checkAndIncrementLimit, randomDelay } from "@/lib/queue/rateLimiter";
+import { checkAndIncrementLimit, releaseLimitSlot, randomDelay } from "@/lib/queue/rateLimiter";
 import { getUnipileClient } from "@/lib/unipile/client";
 import { getCircuitBreaker } from "@/lib/queue/circuitBreaker";
+import { CircuitOpenError } from "@/lib/errors";
 import { fillTemplate } from "@/constants/templateVariables";
 import {
   WAIT_FOR_ACCEPTANCE_TIMEOUT_DAYS,
@@ -226,52 +227,36 @@ async function releaseClaims(
 const CLAIM_WINDOW_MS = 6 * 60_000;
 
 /**
- * Fetch active enrollments whose execution time has arrived, ordered by
- * next_execution_at ascending so oldest-due are processed first.
+ * Claim up to BATCH_SIZE active enrollments whose execution time has arrived,
+ * oldest-due first.
  *
- * The fetched rows are immediately claimed (next_execution_at pushed
- * CLAIM_WINDOW_MS into the future) so an overlapping executor run doesn't
- * pick up the same enrollments and double-send LinkedIn actions.
+ * Selection and claiming happen inside one `claim_due_enrollments` statement
+ * (migration 20240101000020), which locks the candidate rows with
+ * `FOR UPDATE SKIP LOCKED` before pushing next_execution_at CLAIM_WINDOW_MS
+ * into the future. Doing this as a separate SELECT then UPDATE left a window in
+ * which an overlapping run — routine, since the cron fires every 5 minutes and a
+ * run may take 300 s — selected the same rows and sent the same invitation or
+ * DM twice.
+ *
+ * The returned rows carry the claim deadline in `next_execution_at`; every
+ * caller here reads `created_at` / `current_step` instead and overwrites the
+ * field on each step outcome.
  */
 export async function fetchDueEnrollments(
   supabase: SupabaseClient<Database>
 ): Promise<SequenceEnrollment[]> {
-  const now = Date.now();
+  const claimUntil = new Date(Date.now() + CLAIM_WINDOW_MS).toISOString();
 
-  const { data, error } = await supabase
-    .from("sequence_enrollments")
-    .select("*")
-    .eq("status", "active")
-    .lte("next_execution_at", new Date(now).toISOString())
-    .order("next_execution_at", { ascending: true })
-    .limit(BATCH_SIZE);
+  const { data, error } = await supabase.rpc("claim_due_enrollments", {
+    p_limit: BATCH_SIZE,
+    p_claim_until: claimUntil,
+  });
 
   if (error) {
     throw new Error(`fetchDueEnrollments: ${error.message}`);
   }
 
-  const enrollments = (data ?? []) as SequenceEnrollment[];
-  if (enrollments.length === 0) return enrollments;
-
-  const claimUntil = new Date(now + CLAIM_WINDOW_MS).toISOString();
-  const { error: claimError } = await supabase
-    .from("sequence_enrollments")
-    .update({ next_execution_at: claimUntil })
-    .in(
-      "id",
-      enrollments.map((e) => e.id)
-    )
-    .eq("status", "active");
-
-  if (claimError) {
-    // Not fatal — we just lose the overlap protection for this run
-    withCorrelationId(createCorrelationId()).error(
-      { error: claimError },
-      "failed to claim due enrollments"
-    );
-  }
-
-  return enrollments;
+  return (data ?? []) as SequenceEnrollment[];
 }
 
 // ── Step execution ────────────────────────────────────────────────────────────
@@ -400,7 +385,8 @@ async function dispatchStep(
   switch (step.step_type) {
     // ── connection_request ───────────────────────────────────────────────
     case "connection_request": {
-      if (!lead.linkedin_provider_id) {
+      const providerId = lead.linkedin_provider_id;
+      if (!providerId) {
         throw new Error("Lead is missing linkedin_provider_id");
       }
 
@@ -427,9 +413,16 @@ async function dispatchStep(
 
       await randomDelay(minDelayMs, maxDelayMs);
 
-      const inviteResp = await getUnipileClient().sendInvitation(
-        { provider_id: lead.linkedin_provider_id, message: inviteMessage ?? undefined },
-        correlationId
+      const inviteResp = await withSlotRefundOnRejection(
+        supabase,
+        campaign.user_id,
+        "invite",
+        correlationId,
+        () =>
+          getUnipileClient().sendInvitation(
+            { provider_id: providerId, message: inviteMessage ?? undefined },
+            correlationId
+          )
       );
 
       await updateLeadStatus(supabase, lead.id, "invite_sent");
@@ -505,7 +498,8 @@ async function dispatchStep(
 
     // ── message ──────────────────────────────────────────────────────────
     case "message": {
-      if (!lead.linkedin_provider_id) {
+      const providerId = lead.linkedin_provider_id;
+      if (!providerId) {
         throw new Error("Lead is missing linkedin_provider_id");
       }
 
@@ -529,16 +523,30 @@ async function dispatchStep(
       await randomDelay(minDelayMs, maxDelayMs);
 
       const client = getUnipileClient();
-      let chatId = lead.unipile_chat_id;
+      const existingChatId = lead.unipile_chat_id;
 
-      if (chatId) {
-        await client.sendMessageInChat({ chat_id: chatId, text: messageBody }, correlationId);
-      } else {
-        const chatResp = await client.sendMessage(
-          { attendees_ids: [lead.linkedin_provider_id], text: messageBody },
-          correlationId
-        );
-        chatId = chatResp.chat_id;
+      const chatId = await withSlotRefundOnRejection(
+        supabase,
+        campaign.user_id,
+        "message",
+        correlationId,
+        async () => {
+          if (existingChatId) {
+            await client.sendMessageInChat(
+              { chat_id: existingChatId, text: messageBody },
+              correlationId
+            );
+            return existingChatId;
+          }
+          const chatResp = await client.sendMessage(
+            { attendees_ids: [providerId], text: messageBody },
+            correlationId
+          );
+          return chatResp.chat_id;
+        }
+      );
+
+      if (!existingChatId) {
         await supabase
           .from("leads")
           .update({ unipile_chat_id: chatId })
@@ -644,6 +652,41 @@ async function dispatchStep(
   }
 }
 
+// ── Rate-limit slot accounting ────────────────────────────────────────────────
+
+/**
+ * Run a LinkedIn send whose rate-limit slot has already been claimed, handing
+ * the slot back if the call is rejected locally instead of reaching LinkedIn.
+ *
+ * The only rejection treated as a proven non-send is `CircuitOpenError`: the
+ * breaker refuses the call inside this process, so nothing was transmitted.
+ * That case is worth reclaiming because it is not rare — once the breaker
+ * opens, every remaining enrollment in the batch hits it, and at 25 invites a
+ * day a single Unipile outage would otherwise consume the entire quota on
+ * sends that never happened.
+ *
+ * Every other failure (5xx, timeout, dropped socket) is ambiguous about
+ * whether LinkedIn acted on the request, so the slot stays consumed — counting
+ * a send that may have occurred is the conservative direction for a limit whose
+ * whole purpose is keeping the account under LinkedIn's thresholds.
+ */
+async function withSlotRefundOnRejection<T>(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  limitType: "invite" | "message",
+  correlationId: string,
+  send: () => Promise<T>
+): Promise<T> {
+  try {
+    return await send();
+  } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      await releaseLimitSlot(supabase, userId, limitType, correlationId);
+    }
+    throw err;
+  }
+}
+
 // ── Working hours helpers ─────────────────────────────────────────────────────
 
 /** Returns the current hour (0–23) in the given IANA timezone */
@@ -657,29 +700,43 @@ function getHourInTimezone(date: Date, timezone: string): number {
   return parseInt(formatter.format(date), 10) % 24;
 }
 
-function isWithinWorkingHours(settings: Settings): boolean {
+/**
+ * Whether the outreach window is currently open, in the user's timezone.
+ *
+ * Handles all three shapes the two settings columns can take:
+ *  - `start < end` (9→18): the ordinary daytime window.
+ *  - `start > end` (22→6): a window that wraps past midnight. The old
+ *    `hour >= start && hour < end` test is unsatisfiable for these values, so
+ *    such a configuration never sent anything and every enrollment bounced
+ *    between "outside working hours" and a reschedule, forever.
+ *  - `start === end`: read as 24-hour operation. A zero-length window is
+ *    arguably the other reading, but it would mean the executor silently
+ *    reschedules for eternity; operators who want outreach stopped have the
+ *    campaign pause control, which says so explicitly.
+ */
+export function isWithinWorkingHours(settings: Settings): boolean {
   const hour = getHourInTimezone(new Date(), settings.timezone || "UTC");
-  return hour >= settings.outreach_start_hour && hour < settings.outreach_end_hour;
+  const { outreach_start_hour: start, outreach_end_hour: end } = settings;
+
+  if (start === end) return true;
+  if (start < end) return hour >= start && hour < end;
+  return hour >= start || hour < end;
 }
 
 /**
  * Returns a Date for the next start of the outreach window.
- * Approximation: adds whole hours (ignores minutes/seconds) — sufficient for scheduling.
+ *
+ * `(start - hour + 24) % 24` gives the hours until the window opens again for
+ * both ordinary and midnight-wrapping windows without branching on their
+ * relative order.
+ *
+ * Approximation: adds whole hours (ignores minutes/seconds) — sufficient for
+ * scheduling, and it can only ever land *inside* the window, never before it.
  */
-function getNextWorkingWindowStart(settings: Settings): Date {
+export function getNextWorkingWindowStart(settings: Settings): Date {
   const now = new Date();
   const hour = getHourInTimezone(now, settings.timezone || "UTC");
-  const start = settings.outreach_start_hour;
-  const end = settings.outreach_end_hour;
-
-  let hoursToWait: number;
-  if (hour < start) {
-    hoursToWait = start - hour;
-  } else if (hour >= end) {
-    hoursToWait = 24 - hour + start;
-  } else {
-    hoursToWait = 0; // already in window (shouldn't be reached here)
-  }
+  const hoursToWait = (settings.outreach_start_hour - hour + 24) % 24;
 
   return new Date(now.getTime() + hoursToWait * 3_600_000);
 }

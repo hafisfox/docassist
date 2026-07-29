@@ -17,7 +17,11 @@ vi.mock("@/constants/linkedinLimits", () => ({
   MAX_DAILY_PROFILE_VIEWS: 80,
 }));
 
-import { checkAndIncrementLimit, randomDelay } from "@/lib/queue/rateLimiter";
+import {
+  checkAndIncrementLimit,
+  releaseLimitSlot,
+  randomDelay,
+} from "@/lib/queue/rateLimiter";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -250,6 +254,56 @@ describe("checkAndIncrementLimit", () => {
       p_field: "invites_sent_today",
       p_delta: -1,
     });
+  });
+});
+
+describe("releaseLimitSlot", () => {
+  it("decrements the counter for the matching limit type", async () => {
+    const supabase = buildMockSupabase(buildSettings({ invites_sent_today: 5 }));
+    const rpc = supabase.rpc as unknown as ReturnType<typeof vi.fn>;
+
+    await releaseLimitSlot(supabase, "user-1", "invite");
+
+    expect(rpc).toHaveBeenCalledWith("increment_settings_counter", {
+      p_user_id: "user-1",
+      p_field: "invites_sent_today",
+      p_delta: -1,
+    });
+  });
+
+  it("maps each limit type to its own counter column", async () => {
+    const supabase = buildMockSupabase(buildSettings());
+    const rpc = supabase.rpc as unknown as ReturnType<typeof vi.fn>;
+
+    await releaseLimitSlot(supabase, "user-1", "message");
+
+    expect(rpc).toHaveBeenCalledWith(
+      "increment_settings_counter",
+      expect.objectContaining({ p_field: "messages_sent_today" }),
+    );
+  });
+
+  it("returns a claimed slot so the quota is spendable again", async () => {
+    const supabase = buildMockSupabase(buildSettings({ invites_sent_today: 24 }));
+
+    // Claim the last slot, then discover the send never left the process.
+    const claimed = await checkAndIncrementLimit(supabase, "user-1", "invite");
+    expect(claimed).toMatchObject({ allowed: true, current: 25 });
+
+    await releaseLimitSlot(supabase, "user-1", "invite");
+
+    // Without the refund this would be denied — the day's quota burnt on a
+    // send that never reached LinkedIn.
+    const retry = await checkAndIncrementLimit(supabase, "user-1", "invite");
+    expect(retry.allowed).toBe(true);
+  });
+
+  it("swallows a write failure rather than failing the caller", async () => {
+    const supabase = buildMockSupabase(buildSettings(), {
+      updateError: { message: "connection reset" },
+    });
+
+    await expect(releaseLimitSlot(supabase, "user-1", "invite")).resolves.toBeUndefined();
   });
 });
 

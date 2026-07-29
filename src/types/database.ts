@@ -385,6 +385,14 @@ export interface Database {
         };
         Returns: number;
       };
+      claim_due_enrollments: {
+        Args: {
+          p_limit: number;
+          /** ISO timestamp the claimed rows' next_execution_at is pushed to. */
+          p_claim_until: string;
+        };
+        Returns: SequenceEnrollment[];
+      };
     };
     Enums: {
       lead_status: LeadStatus;

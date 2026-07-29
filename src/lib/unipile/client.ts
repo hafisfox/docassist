@@ -1,7 +1,7 @@
 import { createCorrelationId, withCorrelationId } from "@/lib/logger";
 import { UnipileError } from "@/lib/errors";
 import { getCircuitBreaker } from "@/lib/queue/circuitBreaker";
-import { withRetry } from "@/lib/utils/retry";
+import { withRetry, isRetryable, isRetryableForNonIdempotent } from "@/lib/utils/retry";
 import type {
   UnipileSearchParams,
   UnipileRawSearchResponse,
@@ -54,6 +54,13 @@ export class UnipileClient {
       body?: Record<string, unknown>;
       params?: Record<string, string | number | undefined>;
       correlationId?: string;
+      /**
+       * Whether repeating this call is harmless. Reads and searches are; the
+       * endpoints that actually contact a human (invite, new chat, message)
+       * are not, and pass `false` so an ambiguous failure is surfaced instead
+       * of retried into a duplicate send. Defaults to true.
+       */
+      idempotent?: boolean;
     } = {},
   ): Promise<T> {
     const correlationId = options.correlationId ?? createCorrelationId();
@@ -87,6 +94,9 @@ export class UnipileClient {
     // pauses every active campaign. Wrapped this way, a request that eventually
     // succeeds after retries counts as one success, and one that exhausts its
     // retries counts as a single failure.
+    const shouldRetry =
+      options.idempotent === false ? isRetryableForNonIdempotent : isRetryable;
+
     return getCircuitBreaker().execute(() => withRetry(async () => {
       let response: Response;
       try {
@@ -119,7 +129,7 @@ export class UnipileClient {
       const data = (await response.json()) as T;
       log.debug({ method, path, status: response.status }, "unipile response ok");
       return data;
-    }));
+    }, { shouldRetry }));
   }
 
   // ─── Search ─────────────────────────────────────────────────────────
@@ -238,6 +248,7 @@ export class UnipileClient {
           ...(params.message && { message: params.message }),
         },
         correlationId: cid,
+        idempotent: false,
       },
     );
   }
@@ -266,6 +277,7 @@ export class UnipileClient {
         text: params.text,
       },
       correlationId: cid,
+      idempotent: false,
     });
   }
 
@@ -284,6 +296,7 @@ export class UnipileClient {
       {
         body: { text: params.text },
         correlationId: cid,
+        idempotent: false,
       },
     );
   }
